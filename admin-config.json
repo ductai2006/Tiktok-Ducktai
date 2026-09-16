@@ -1,0 +1,58 @@
+{
+  "adminPassword": "ducktai2006",
+  "maintenance": {
+    "enabled": false,
+    "title": "Website đang bảo trì",
+    "message": "Chúng tôi đang nâng cấp hệ thống để mang lại trải nghiệm tốt hơn. Vui lòng quay lại sau.",
+    "estimatedTime": ""
+  },
+  "banner": {
+    "enabled": false,
+    "message": "Chào mừng đến với TikFlow - Trình tải video đa nền tảng!",
+    "type": "info"
+  },
+  "blockedIPs": [],
+  "blockedDevices": [
+    {
+      "pattern": "curl",
+      "reason": "Bị chặn bởi Admin",
+      "addedAt": "2026-09-07T06:59:00.826Z"
+    },
+    {
+      "pattern": "python-requests",
+      "reason": "Bị chặn bởi Admin",
+      "addedAt": "2026-09-07T06:59:15.617Z"
+    },
+    {
+      "pattern": "Googlebot",
+      "reason": "check",
+      "addedAt": "2026-09-07T06:59:38.522Z"
+    }
+  ],
+  "platforms": {
+    "tiktok": {
+      "enabled": true,
+      "name": "TikTok"
+    },
+    "youtube": {
+      "enabled": true,
+      "name": "YouTube"
+    },
+    "pinterest": {
+      "enabled": true,
+      "name": "Pinterest"
+    },
+    "x": {
+      "enabled": true,
+      "name": "Twitter / X"
+    },
+    "instagram": {
+      "enabled": true,
+      "name": "Instagram"
+    },
+    "facebook": {
+      "enabled": true,
+      "name": "Facebook"
+    }
+  }
+}

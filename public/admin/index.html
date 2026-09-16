@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TikFlow Admin Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07071a;
+      --bg-card: rgba(18,18,29,0.8);
+      --bg-input: rgba(10,10,20,0.7);
+      --border: rgba(255,255,255,0.08);
+      --border-hover: rgba(168,85,247,0.4);
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --dim: #6b7280;
+      --purple: #a855f7;
+      --blue: #3b82f6;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --grad: linear-gradient(135deg,#a855f7,#3b82f6);
+      --sidebar-w: 240px;
+      --radius: 14px;
+      --trans: 0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Plus Jakarta Sans','Be Vietnam Pro',-apple-system,sans-serif;background:#07071a;color:var(--text);min-height:100vh;overflow-x:hidden}
+
+    /* ======= GLOW BG ======= */
+    .glow-bg{position:fixed;inset:0;z-index:-1;pointer-events:none}
+    .glow-bg::before{content:'';position:absolute;top:-20%;right:-10%;width:50vw;height:50vw;background:radial-gradient(circle,rgba(168,85,247,0.15),transparent 70%);border-radius:50%;filter:blur(80px)}
+    .glow-bg::after{content:'';position:absolute;bottom:-20%;left:-10%;width:45vw;height:45vw;background:radial-gradient(circle,rgba(59,130,246,0.12),transparent 70%);border-radius:50%;filter:blur(80px)}
+
+    /* ======= LOGIN ======= */
+    #login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+    .login-card{background:var(--bg-card);border:1px solid var(--border);border-radius:24px;padding:48px 40px;width:100%;max-width:400px;backdrop-filter:blur(20px);box-shadow:0 25px 60px rgba(0,0,0,0.5);animation:fadeIn .4s ease}
+    .login-logo{text-align:center;margin-bottom:36px}
+    .login-logo .icon{width:64px;height:64px;background:var(--grad);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 24px rgba(168,85,247,0.35)}
+    .login-logo h1{font-size:1.8rem;font-weight:800}
+    .login-logo h1 span{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .login-logo p{color:var(--muted);font-size:.9rem;margin-top:4px}
+    .form-group{margin-bottom:20px}
+    .form-group label{display:block;font-size:.85rem;font-weight:600;color:var(--muted);margin-bottom:8px;letter-spacing:.5px;text-transform:uppercase}
+    .form-group input{width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:14px 18px;border-radius:10px;font-family:'Outfit',sans-serif;font-size:1rem;outline:none;transition:all var(--trans)}
+    .form-group input:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(168,85,247,0.15)}
+    .btn-login{width:100%;background:var(--grad);color:#fff;border:none;padding:16px;border-radius:10px;font-family:'Outfit',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;transition:all var(--trans);box-shadow:0 4px 15px rgba(168,85,247,0.3);margin-top:8px}
+    .btn-login:hover{transform:translateY(-1px);box-shadow:0 8px 25px rgba(168,85,247,0.5)}
+    .login-error{color:var(--red);font-size:.85rem;text-align:center;margin-top:12px;padding:10px;background:rgba(239,68,68,0.1);border-radius:8px;border:1px solid rgba(239,68,68,0.2);display:none}
+
+    /* ======= DASHBOARD ======= */
+    #dashboard{display:none;min-height:100vh}
+
+    /* SIDEBAR */
+    .sidebar{position:fixed;left:0;top:0;width:var(--sidebar-w);height:100vh;background:rgba(10,10,20,0.9);border-right:1px solid var(--border);backdrop-filter:blur(20px);display:flex;flex-direction:column;z-index:100;transition:transform var(--trans)}
+    .sidebar-logo{padding:28px 20px 20px;border-bottom:1px solid var(--border)}
+    .sidebar-logo .logo-row{display:flex;align-items:center;gap:10px}
+    .sidebar-logo .logo-icon{width:36px;height:36px;background:var(--grad);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .sidebar-logo h2{font-size:1.2rem;font-weight:800}
+    .sidebar-logo h2 span{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .sidebar-logo .badge{background:rgba(168,85,247,0.15);color:var(--purple);border:1px solid rgba(168,85,247,0.3);font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:20px;margin-top:4px;letter-spacing:.5px;display:inline-block}
+    .sidebar-nav{flex:1;overflow-y:auto;padding:16px 12px}
+    .nav-section-label{font-size:.7rem;font-weight:700;color:var(--dim);letter-spacing:1px;text-transform:uppercase;padding:8px 12px 6px;margin-top:8px}
+    .nav-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;cursor:pointer;transition:all var(--trans);color:var(--muted);font-weight:500;font-size:.9rem;position:relative;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,0.04);color:var(--text)}
+    .nav-item.active{background:rgba(168,85,247,0.12);color:var(--purple);border:1px solid rgba(168,85,247,0.2)}
+    .nav-item .nav-icon{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+    .nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;min-width:20px;text-align:center}
+    .nav-badge.green{background:var(--green)}
+    .sidebar-footer{padding:16px 12px;border-top:1px solid var(--border)}
+    .sidebar-user{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px}
+    .sidebar-user .avatar{width:32px;height:32px;background:var(--grad);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem}
+    .sidebar-user .info small{display:block;color:var(--dim);font-size:.75rem}
+    .btn-logout{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);color:var(--red);font-family:'Outfit',sans-serif;font-size:.85rem;font-weight:600;cursor:pointer;transition:all var(--trans);margin-top:8px}
+    .btn-logout:hover{background:rgba(239,68,68,0.15)}
+
+    /* MAIN CONTENT */
+    .main{margin-left:var(--sidebar-w);min-height:100vh;padding:32px}
+    .page-header{margin-bottom:28px}
+    .page-header h1{font-size:1.7rem;font-weight:800}
+    .page-header p{color:var(--muted);font-size:.9rem;margin-top:4px}
+
+    /* CARDS */
+    .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;backdrop-filter:blur(20px);transition:border-color var(--trans)}
+    .card:hover{border-color:rgba(255,255,255,0.12)}
+    .card-title{font-size:1rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .card-title .dot{width:8px;height:8px;border-radius:50%;background:var(--purple);box-shadow:0 0 8px rgba(168,85,247,0.6)}
+
+    /* STAT CARDS */
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
+    .stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;align-items:center;gap:16px;transition:all var(--trans);backdrop-filter:blur(20px)}
+    .stat-card:hover{border-color:rgba(168,85,247,0.3);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3)}
+    .stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .stat-icon.purple{background:rgba(168,85,247,0.15);color:var(--purple)}
+    .stat-icon.blue{background:rgba(59,130,246,0.15);color:var(--blue)}
+    .stat-icon.green{background:rgba(16,185,129,0.15);color:var(--green)}
+    .stat-icon.red{background:rgba(239,68,68,0.15);color:var(--red)}
+    .stat-icon.yellow{background:rgba(245,158,11,0.15);color:var(--yellow)}
+    .stat-val{font-size:1.6rem;font-weight:800;line-height:1}
+    .stat-label{color:var(--muted);font-size:.8rem;margin-top:4px}
+
+    /* TOGGLE SWITCH */
+    .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--border)}
+    .toggle-row:last-of-type{border-bottom:none}
+    .toggle-info h4{font-weight:600;font-size:.95rem}
+    .toggle-info p{color:var(--muted);font-size:.82rem;margin-top:3px}
+    .toggle{position:relative;width:50px;height:26px;flex-shrink:0}
+    .toggle input{opacity:0;width:0;height:0}
+    .toggle-slider{position:absolute;inset:0;background:rgba(255,255,255,0.1);border-radius:26px;cursor:pointer;transition:.3s;border:1px solid var(--border)}
+    .toggle-slider::before{content:'';position:absolute;width:20px;height:20px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 2px 4px rgba(0,0,0,0.3)}
+    .toggle input:checked+.toggle-slider{background:linear-gradient(135deg,var(--purple),var(--blue));border-color:var(--purple)}
+    .toggle input:checked+.toggle-slider::before{transform:translateX(24px)}
+
+    /* FORMS */
+    .form-row{margin-bottom:16px}
+    .form-row label{display:block;font-size:.82rem;font-weight:600;color:var(--muted);margin-bottom:7px;text-transform:uppercase;letter-spacing:.5px}
+    .form-row input,.form-row textarea,.form-row select{width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:12px 16px;border-radius:9px;font-family:'Outfit',sans-serif;font-size:.9rem;outline:none;transition:all var(--trans);resize:vertical}
+    .form-row input:focus,.form-row textarea:focus,.form-row select:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(168,85,247,0.12)}
+    .form-row textarea{min-height:90px}
+    .form-row select option{background:#0d0d1f}
+
+    /* BUTTONS */
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:9px;font-family:'Outfit',sans-serif;font-size:.88rem;font-weight:600;cursor:pointer;transition:all var(--trans);border:none}
+    .btn-primary{background:var(--grad);color:#fff;box-shadow:0 4px 12px rgba(168,85,247,0.25)}
+    .btn-primary:hover{box-shadow:0 6px 20px rgba(168,85,247,0.45);transform:translateY(-1px)}
+    .btn-danger{background:rgba(239,68,68,0.12);color:var(--red);border:1px solid rgba(239,68,68,0.25)}
+    .btn-danger:hover{background:rgba(239,68,68,0.2)}
+    .btn-ghost{background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid var(--border)}
+    .btn-ghost:hover{background:rgba(255,255,255,0.1);color:var(--text)}
+    .btn-sm{padding:6px 12px;font-size:.8rem}
+
+    /* TABLE */
+    .table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:.85rem}
+    thead th{text-align:left;padding:10px 16px;color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
+    tbody td{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle}
+    tbody tr:hover td{background:rgba(255,255,255,0.02)}
+    tbody tr:last-child td{border-bottom:none}
+
+    /* STATUS BADGES */
+    .badge-status{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:600}
+    .badge-status.on{background:rgba(16,185,129,0.12);color:var(--green);border:1px solid rgba(16,185,129,0.25)}
+    .badge-status.off{background:rgba(107,114,128,0.12);color:var(--dim);border:1px solid rgba(107,114,128,0.2)}
+    .badge-status.blocked{background:rgba(239,68,68,0.12);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
+    .badge-status::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+
+    /* SECTIONS */
+    .section{display:none;animation:fadeIn .3s ease}
+    .section.active{display:block}
+
+    /* TYPE SELECTOR */
+    .type-selector{display:flex;gap:8px;flex-wrap:wrap}
+    .type-btn{padding:7px 16px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--muted);cursor:pointer;font-family:'Outfit',sans-serif;font-size:.85rem;font-weight:500;transition:all var(--trans)}
+    .type-btn:hover{border-color:rgba(255,255,255,0.2);color:var(--text)}
+    .type-btn.active-info{border-color:var(--blue);background:rgba(59,130,246,0.1);color:var(--blue)}
+    .type-btn.active-warning{border-color:var(--yellow);background:rgba(245,158,11,0.1);color:var(--yellow)}
+    .type-btn.active-success{border-color:var(--green);background:rgba(16,185,129,0.1);color:var(--green)}
+    .type-btn.active-error{border-color:var(--red);background:rgba(239,68,68,0.1);color:var(--red)}
+
+    /* ALERT (toast) */
+    #alert-bar{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:360px}
+    .alert-msg{padding:13px 18px;border-radius:10px;font-size:.88rem;font-weight:500;backdrop-filter:blur(12px);border:1px solid transparent;display:flex;align-items:center;gap:10px;animation:slideIn .3s ease;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+    .alert-msg.success{background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.3);color:#34d399}
+    .alert-msg.error{background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.3);color:#f87171}
+    .alert-msg.info{background:rgba(59,130,246,0.15);border-color:rgba(59,130,246,0.3);color:#60a5fa}
+
+    /* LOG ITEMS */
+    .log-method{display:inline-block;padding:2px 8px;border-radius:5px;font-size:.72rem;font-weight:700}
+    .log-method.GET{background:rgba(16,185,129,0.12);color:var(--green)}
+    .log-method.POST{background:rgba(59,130,246,0.12);color:var(--blue)}
+    .log-ip{font-family:monospace;font-size:.82rem;color:var(--purple)}
+    .log-ua{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:.78rem}
+
+    /* QUICK ACTIONS */
+    .quick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:16px}
+    .quick-card{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all var(--trans);text-align:center}
+    .quick-card:hover{border-color:rgba(168,85,247,0.35);transform:translateY(-2px);background:rgba(168,85,247,0.05)}
+    .quick-card .qicon{font-size:1.8rem;margin-bottom:8px}
+    .quick-card h4{font-size:.88rem;font-weight:600}
+    .quick-card p{color:var(--dim);font-size:.75rem;margin-top:3px}
+
+    /* EMPTY STATE */
+    .empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+    .empty-state .eicon{font-size:2.5rem;margin-bottom:12px;opacity:.5}
+    .empty-state p{font-size:.9rem}
+
+    /* ANIMATIONS */
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    @keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:3px}
+
+    /* DIVIDER */
+    .divider{height:1px;background:var(--border);margin:20px 0}
+
+    /* GRID 2COL */
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    @media(max-width:768px){.grid-2{grid-template-columns:1fr}.sidebar{transform:translateX(-100%)}.main{margin-left:0}}
+
+    /* MAINTENANCE PREVIEW */
+    .preview-box{background:rgba(0,0,0,0.3);border:1px dashed rgba(255,255,255,0.1);border-radius:10px;padding:20px;text-align:center;margin-top:16px}
+    .preview-box .prev-icon{font-size:2rem;margin-bottom:8px}
+    .preview-box h3{font-size:1rem;margin-bottom:4px}
+    .preview-box p{color:var(--muted);font-size:.82rem}
+
+    /* BANNER PREVIEW */
+    .banner-preview{padding:12px 20px;border-radius:8px;margin-top:12px;font-size:.88rem;display:flex;align-items:center;gap:10px}
+    .banner-preview.info{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);color:#60a5fa}
+    .banner-preview.warning{background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#fbbf24}
+    .banner-preview.success{background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);color:#34d399}
+    .banner-preview.error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#f87171}
+
+    /* Add IP FORM */
+    .add-form{background:rgba(168,85,247,0.04);border:1px solid rgba(168,85,247,0.15);border-radius:12px;padding:20px;margin-bottom:20px}
+    .add-form-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+    .add-form-row .form-row{flex:1;min-width:150px;margin-bottom:0}
+  </style>
+</head>
+<body>
+  <div class="glow-bg"></div>
+  <div id="alert-bar"></div>
+
+  <!-- ========== LOGIN ========== -->
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="icon">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h1>Tik<span>Flow</span></h1>
+        <p>Admin Panel — Quản lý hệ thống</p>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu quản trị</label>
+        <input type="password" id="login-pass" placeholder="Nhập mật khẩu..." autocomplete="off">
+      </div>
+      <button class="btn-login" onclick="doLogin()">Đăng nhập</button>
+      <div class="login-error" id="login-error">Mật khẩu không đúng. Vui lòng thử lại.</div>
+    </div>
+  </div>
+
+  <!-- ========== DASHBOARD ========== -->
+  <div id="dashboard">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-row">
+          <div class="logo-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h2>Tik<span>Flow</span></h2>
+        </div>
+        <div class="badge">ADMIN PANEL</div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Tổng quan</div>
+        <div class="nav-item active" onclick="showSection('overview')">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+          Dashboard
+        </div>
+
+        <div class="nav-section-label">Kiểm soát</div>
+        <div class="nav-item" onclick="showSection('maintenance')">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+          Bảo trì
+        </div>
+        <div class="nav-item" onclick="showSection('banner')">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></span>
+          Banner thông báo
+        </div>
+        <div class="nav-item" onclick="showSection('platforms')">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+          Bảo trì Mạng Xã Hội
+        </div>
+
+        <div class="nav-section-label">Bảo mật</div>
+        <div class="nav-item" onclick="showSection('blockip')">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></span>
+          Chặn IP
+          <span class="nav-badge" id="ip-badge">0</span>
+        </div>
+        <div class="nav-item" onclick="showSection('blockdevice')">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span>
+          Chặn thiết bị
+          <span class="nav-badge" id="dev-badge">0</span>
+        </div>
+
+        <div class="nav-section-label">Giám sát</div>
+        <div class="nav-item" onclick="showSection('logs')">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
+          Request Logs
+        </div>
+
+        <div class="nav-section-label">Hệ thống</div>
+        <div class="nav-item" onclick="showSection('settings')">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+          Cài đặt
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar">A</div>
+          <div class="info"><strong>Admin</strong><small>Quản trị viên</small></div>
+        </div>
+        <button class="btn-logout" onclick="doLogout()">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Đăng xuất
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+
+      <!-- ===== OVERVIEW ===== -->
+      <div class="section active" id="sec-overview">
+        <div class="page-header">
+          <h1>Dashboard</h1>
+          <p>Tổng quan hệ thống TikFlow</p>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon purple">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            </div>
+            <div>
+              <div class="stat-val" id="stat-maintenance">—</div>
+              <div class="stat-label">Chế độ bảo trì</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon blue">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg>
+            </div>
+            <div>
+              <div class="stat-val" id="stat-banner">—</div>
+              <div class="stat-label">Banner thông báo</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </div>
+            <div>
+              <div class="stat-val" id="stat-platforms-active">—</div>
+              <div class="stat-label">Nền tảng hoạt động</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon red">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            </div>
+            <div>
+              <div class="stat-val" id="stat-blocked-ip">0</div>
+              <div class="stat-label">IP bị chặn</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon yellow">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            </div>
+            <div>
+              <div class="stat-val" id="stat-blocked-dev">0</div>
+              <div class="stat-label">Thiết bị bị chặn</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon purple">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div>
+              <div class="stat-val" id="stat-log-count">0</div>
+              <div class="stat-label">Requests gần đây</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Thao tác nhanh</div>
+          <div class="quick-grid">
+            <div class="quick-card" onclick="showSection('maintenance')">
+              <div class="qicon">🔧</div>
+              <h4>Bảo trì website</h4>
+              <p>Bật/tắt maintenance mode</p>
+            </div>
+            <div class="quick-card" onclick="showSection('banner')">
+              <div class="qicon">📢</div>
+              <h4>Đăng banner</h4>
+              <p>Thông báo cho người dùng</p>
+            </div>
+            <div class="quick-card" onclick="showSection('blockip')">
+              <div class="qicon">🚫</div>
+              <h4>Chặn IP</h4>
+              <p>Chặn địa chỉ IP cụ thể</p>
+            </div>
+            <div class="quick-card" onclick="showSection('blockdevice')">
+              <div class="qicon">📱</div>
+              <h4>Chặn thiết bị</h4>
+              <p>Chặn bot, thiết bị lạ</p>
+            </div>
+            <div class="quick-card" onclick="showSection('logs')">
+              <div class="qicon">📋</div>
+              <h4>Xem request log</h4>
+              <p>Giám sát lượt truy cập</p>
+            </div>
+            <div class="quick-card" onclick="loadConfig()">
+              <div class="qicon">🔄</div>
+              <h4>Tải lại dữ liệu</h4>
+              <p>Cập nhật số liệu mới nhất</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== MAINTENANCE ===== -->
+      <div class="section" id="sec-maintenance">
+        <div class="page-header">
+          <h1>🔧 Chế độ bảo trì</h1>
+          <p>Khi bật, mọi người dùng sẽ thấy trang bảo trì thay vì website</p>
+        </div>
+        <div class="card">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <h4>Bật chế độ bảo trì</h4>
+              <p>Website sẽ hiện trang bảo trì cho tất cả người dùng (trừ admin)</p>
+            </div>
+            <label class="toggle"><input type="checkbox" id="maintenance-toggle"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="divider"></div>
+          <div class="form-row">
+            <label>Tiêu đề trang bảo trì</label>
+            <input type="text" id="maint-title" placeholder="VD: Website đang bảo trì">
+          </div>
+          <div class="form-row">
+            <label>Nội dung thông báo</label>
+            <textarea id="maint-msg" placeholder="VD: Chúng tôi đang nâng cấp hệ thống..."></textarea>
+          </div>
+          <div class="form-row">
+            <label>Thời gian dự kiến hoàn thành (tùy chọn)</label>
+            <input type="text" id="maint-time" placeholder="VD: 30/08/2026 lúc 18:00">
+          </div>
+          <div class="preview-box" id="maint-preview">
+            <div class="prev-icon">🔧</div>
+            <h3 id="prev-maint-title">Website đang bảo trì</h3>
+            <p id="prev-maint-msg">Chúng tôi đang nâng cấp hệ thống...</p>
+            <small id="prev-maint-time" style="color:var(--dim);margin-top:6px;display:block"></small>
+          </div>
+          <div style="margin-top:20px;display:flex;gap:10px">
+            <button class="btn btn-primary" onclick="saveMaintenance()">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Lưu cài đặt
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== BANNER ===== -->
+      <div class="section" id="sec-banner">
+        <div class="page-header">
+          <h1>📢 Banner thông báo</h1>
+          <p>Hiển thị thông báo trên đầu website cho người dùng</p>
+        </div>
+        <div class="card">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <h4>Hiển thị banner</h4>
+              <p>Banner sẽ xuất hiện ở đầu trang web</p>
+            </div>
+            <label class="toggle"><input type="checkbox" id="banner-toggle"><span class="toggle-slider"></span></label>
+          </div>
+          <div class="divider"></div>
+          <div class="form-row">
+            <label>Nội dung banner</label>
+            <input type="text" id="banner-msg" placeholder="VD: Website hiện đang hoạt động tốt!" oninput="updateBannerPreview()">
+          </div>
+          <div class="form-row">
+            <label>Loại banner</label>
+            <div class="type-selector">
+              <button class="type-btn active-info" data-type="info" onclick="selectBannerType('info')">ℹ️ Thông tin</button>
+              <button class="type-btn" data-type="warning" onclick="selectBannerType('warning')">⚠️ Cảnh báo</button>
+              <button class="type-btn" data-type="success" onclick="selectBannerType('success')">✅ Thành công</button>
+              <button class="type-btn" data-type="error" onclick="selectBannerType('error')">❌ Lỗi/Khẩn cấp</button>
+            </div>
+          </div>
+          <div class="banner-preview info" id="banner-preview-box">
+            <span id="banner-preview-icon">ℹ️</span>
+            <span id="banner-preview-text">Nội dung banner sẽ hiện ở đây...</span>
+          </div>
+          <div style="margin-top:20px;display:flex;gap:10px">
+            <button class="btn btn-primary" onclick="saveBanner()">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Lưu banner
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PLATFORMS MAINTENANCE ===== -->
+      <div class="section" id="sec-platforms">
+        <div class="page-header">
+          <h1>🌐 Quản lý Bảo trì Mạng Xã Hội</h1>
+          <p>Bật/tắt tính năng tải video cho từng nền tảng cụ thể (TikTok, YouTube, Pinterest, Twitter/X, Instagram, Facebook)</p>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Trạng thái tính năng theo mạng xã hội</div>
+          <div id="platforms-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:16px">
+            <!-- Loaded dynamically from JS -->
+          </div>
+          <div style="margin-top:24px;display:flex;gap:10px">
+            <button class="btn btn-primary" onclick="savePlatforms()">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Lưu trạng thái Nền tảng
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="section" id="sec-blockip">
+        <div class="page-header">
+          <h1>🚫 Chặn IP</h1>
+          <p>Quản lý danh sách IP bị chặn truy cập website</p>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Thêm IP vào danh sách chặn</div>
+          <div class="add-form">
+            <div class="add-form-row">
+              <div class="form-row">
+                <label>Địa chỉ IP</label>
+                <input type="text" id="new-ip" placeholder="VD: 192.168.1.100 hoặc 203.113.xxx.xxx">
+              </div>
+              <div class="form-row">
+                <label>Lý do (tùy chọn)</label>
+                <input type="text" id="new-ip-reason" placeholder="VD: Spam, bot, tấn công...">
+              </div>
+              <button class="btn btn-primary" onclick="blockIP()" style="flex-shrink:0;margin-bottom:0">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Chặn IP
+              </button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Địa chỉ IP</th><th>Lý do</th><th>Thời gian</th><th>Hành động</th></tr></thead>
+              <tbody id="ip-table-body">
+                <tr><td colspan="4"><div class="empty-state"><div class="eicon">✅</div><p>Chưa có IP nào bị chặn</p></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== BLOCK DEVICE ===== -->
+      <div class="section" id="sec-blockdevice">
+        <div class="page-header">
+          <h1>📱 Chặn thiết bị / Bot</h1>
+          <p>Chặn theo User-Agent string (hỗ trợ regex pattern)</p>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Thêm pattern chặn</div>
+          <div class="add-form">
+            <div class="add-form-row">
+              <div class="form-row">
+                <label>Pattern (User-Agent)</label>
+                <input type="text" id="new-device" placeholder="VD: Googlebot, curl, python-requests">
+              </div>
+              <div class="form-row">
+                <label>Lý do</label>
+                <input type="text" id="new-device-reason" placeholder="VD: Bot craper, script...">
+              </div>
+              <button class="btn btn-primary" onclick="blockDevice()" style="flex-shrink:0;margin-bottom:0">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Thêm
+              </button>
+            </div>
+          </div>
+          <div style="margin-bottom:12px;padding:10px 14px;background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.2);border-radius:8px;font-size:.82rem;color:#fbbf24">
+            💡 <strong>Gợi ý pattern phổ biến:</strong> Googlebot, bingbot, python-requests, curl, scrapy, wget, HeadlessChrome
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Pattern</th><th>Lý do</th><th>Thời gian</th><th>Hành động</th></tr></thead>
+              <tbody id="device-table-body">
+                <tr><td colspan="4"><div class="empty-state"><div class="eicon">✅</div><p>Chưa có thiết bị nào bị chặn</p></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== LOGS ===== -->
+      <div class="section" id="sec-logs">
+        <div class="page-header">
+          <h1>📋 Request Logs</h1>
+          <p>200 request gần nhất truy cập website</p>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div class="card-title" style="margin-bottom:0"><span class="dot"></span>Nhật ký truy cập</div>
+            <button class="btn btn-ghost btn-sm" onclick="loadLogs()">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Làm mới
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Thời gian</th><th>IP</th><th>Method</th><th>URL</th><th>User-Agent</th></tr></thead>
+              <tbody id="log-table-body">
+                <tr><td colspan="5"><div class="empty-state"><div class="eicon">📋</div><p>Chưa có dữ liệu log</p></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SETTINGS ===== -->
+      <div class="section" id="sec-settings">
+        <div class="page-header">
+          <h1>⚙️ Cài đặt hệ thống</h1>
+          <p>Quản lý mật khẩu và cài đặt admin</p>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title"><span class="dot"></span>Đổi mật khẩu admin</div>
+            <div class="form-row">
+              <label>Mật khẩu hiện tại</label>
+              <input type="password" id="curr-pass" placeholder="Nhập mật khẩu hiện tại">
+            </div>
+            <div class="form-row">
+              <label>Mật khẩu mới</label>
+              <input type="password" id="new-pass" placeholder="Nhập mật khẩu mới">
+            </div>
+            <div class="form-row">
+              <label>Xác nhận mật khẩu mới</label>
+              <input type="password" id="confirm-pass" placeholder="Nhập lại mật khẩu mới">
+            </div>
+            <button class="btn btn-primary" onclick="changePassword()">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Đổi mật khẩu
+            </button>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="dot"></span>Thông tin hệ thống</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+                <span style="color:var(--muted);font-size:.85rem">Phiên bản</span>
+                <span style="font-weight:600;font-size:.85rem">TikFlow v2026</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+                <span style="color:var(--muted);font-size:.85rem">Admin Panel</span>
+                <span style="font-weight:600;font-size:.85rem;color:var(--green)">Hoạt động</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:10px 0">
+                <span style="color:var(--muted);font-size:.85rem">Trạng thái Server</span>
+                <span class="badge-status on">Đang chạy</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    const API = '';
+    let token = localStorage.getItem('admin_token') || '';
+    let currentBannerType = 'info';
+
+    // ========== AUTH ==========
+    async function doLogin() {
+      const pass = document.getElementById('login-pass').value;
+      if (!pass) return;
+      try {
+        const r = await fetch(`${API}/api/admin/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pass })
+        });
+        const d = await r.json();
+        if (d.token) {
+          token = d.token;
+          localStorage.setItem('admin_token', token);
+          showDashboard();
+        } else {
+          document.getElementById('login-error').style.display = 'block';
+        }
+      } catch(e) {
+        document.getElementById('login-error').style.display = 'block';
+      }
+    }
+
+    document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+    function doLogout() {
+      localStorage.removeItem('admin_token');
+      token = '';
+      document.getElementById('dashboard').style.display = 'none';
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('login-pass').value = '';
+    }
+
+    async function showDashboard() {
+      // Verify token
+      try {
+        const r = await fetch(`${API}/api/admin/config`, { headers: { 'x-admin-token': token } });
+        if (r.status === 401) { doLogout(); return; }
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'block';
+        await loadConfig();
+        await loadLogs();
+      } catch(e) { doLogout(); }
+    }
+
+    // ========== NAVIGATION ==========
+    function showSection(id) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.getElementById('sec-' + id).classList.add('active');
+      event.currentTarget && event.currentTarget.classList.add('active');
+      // Find the clicked nav item
+      document.querySelectorAll('.nav-item').forEach(n => {
+        if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + id + "'")) n.classList.add('active');
+      });
+    }
+
+    // ========== LOAD CONFIG ==========
+    async function loadConfig() {
+      try {
+        const r = await fetch(`${API}/api/admin/config`, { headers: { 'x-admin-token': token } });
+        if (r.status === 401) { doLogout(); return; }
+        const cfg = await r.json();
+
+        // Stats
+        document.getElementById('stat-maintenance').textContent = cfg.maintenance.enabled ? 'BẬT' : 'TẮT';
+        document.getElementById('stat-maintenance').style.color = cfg.maintenance.enabled ? 'var(--yellow)' : 'var(--green)';
+        document.getElementById('stat-banner').textContent = cfg.banner.enabled ? 'BẬT' : 'TẮT';
+        document.getElementById('stat-banner').style.color = cfg.banner.enabled ? 'var(--blue)' : 'var(--muted)';
+        document.getElementById('stat-blocked-ip').textContent = cfg.blockedIPs.length;
+        document.getElementById('stat-blocked-dev').textContent = cfg.blockedDevices.length;
+
+        // Badges
+        document.getElementById('ip-badge').textContent = cfg.blockedIPs.length;
+        document.getElementById('dev-badge').textContent = cfg.blockedDevices.length;
+
+        // Maintenance form
+        document.getElementById('maintenance-toggle').checked = cfg.maintenance.enabled;
+        document.getElementById('maint-title').value = cfg.maintenance.title;
+        document.getElementById('maint-msg').value = cfg.maintenance.message;
+        document.getElementById('maint-time').value = cfg.maintenance.estimatedTime;
+        updateMaintenancePreview();
+
+        // Banner form
+        document.getElementById('banner-toggle').checked = cfg.banner.enabled;
+        document.getElementById('banner-msg').value = cfg.banner.message;
+        selectBannerType(cfg.banner.type || 'info');
+
+        // IP table
+        renderIPTable(cfg.blockedIPs);
+
+        // Device table
+        renderDeviceTable(cfg.blockedDevices);
+
+        // Platforms stat
+        if (cfg.platforms) {
+          const total = Object.keys(cfg.platforms).length;
+          const active = Object.values(cfg.platforms).filter(p => p.enabled !== false).length;
+          const statEl = document.getElementById('stat-platforms-active');
+          if (statEl) {
+            statEl.textContent = `${active}/${total}`;
+            statEl.style.color = active === total ? 'var(--green)' : (active === 0 ? 'var(--red)' : 'var(--yellow)');
+          }
+        }
+
+        // Platforms
+        renderPlatforms(cfg.platforms);
+
+      } catch(e) { showAlert('Lỗi tải dữ liệu', 'error'); }
+    }
+
+    // ========== PLATFORMS ==========
+    let currentPlatformsConfig = {};
+
+    const PLATFORM_META = {
+      tiktok:    { color: '#ff0050', icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.17 8.17 0 0 0 4.78 1.52V6.78a4.85 4.85 0 0 1-1.01-.09z"/></svg>` },
+      youtube:   { color: '#ff0000', icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M23.495 6.205a3.007 3.007 0 0 0-2.088-2.088c-1.87-.501-9.396-.501-9.396-.501s-7.507-.01-9.396.501A3.007 3.007 0 0 0 .527 6.205a31.247 31.247 0 0 0-.522 5.805 31.247 31.247 0 0 0 .522 5.783 3.007 3.007 0 0 0 2.088 2.088c1.868.502 9.396.502 9.396.502s7.506 0 9.396-.502a3.007 3.007 0 0 0 2.088-2.088 31.247 31.247 0 0 0 .5-5.783 31.247 31.247 0 0 0-.5-5.805zM9.609 15.601V8.408l6.264 3.602z"/></svg>` },
+      pinterest: { color: '#bd081c', icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 0 1 .083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.632-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>` },
+      x:         { color: '#000000', icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>` },
+      instagram: { color: '#e1306c', icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>` },
+      facebook:  { color: '#1877f2', icon: `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>` }
+    };
+
+    function renderPlatforms(platforms) {
+      currentPlatformsConfig = platforms || {
+        tiktok: { enabled: true, name: 'TikTok' },
+        youtube: { enabled: true, name: 'YouTube' },
+        pinterest: { enabled: true, name: 'Pinterest' },
+        x: { enabled: true, name: 'Twitter / X' },
+        instagram: { enabled: true, name: 'Instagram' },
+        facebook: { enabled: true, name: 'Facebook' }
+      };
+
+      const grid = document.getElementById('platforms-grid');
+      if (!grid) return;
+
+      const pKeys = Object.keys(currentPlatformsConfig);
+      grid.innerHTML = pKeys.map(key => {
+        const item = currentPlatformsConfig[key];
+        const isEnabled = item.enabled !== false;
+        const meta = PLATFORM_META[key] || { color: '#6b7280', icon: '🌐' };
+        return `
+          <div style="background:var(--bg-input);border:1px solid ${isEnabled ? 'rgba(255,255,255,0.08)' : 'rgba(239,68,68,0.25)'};border-radius:14px;padding:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;transition:all 0.2s">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="width:42px;height:42px;border-radius:10px;background:${meta.color}18;border:1px solid ${meta.color}30;display:flex;align-items:center;justify-content:center;color:${meta.color};flex-shrink:0">
+                ${meta.icon}
+              </div>
+              <div>
+                <strong style="font-size:.95rem;display:block;margin-bottom:2px">${item.name || key.toUpperCase()}</strong>
+                <small style="display:flex;align-items:center;gap:4px;color:${isEnabled ? 'var(--green)' : 'var(--red)'};font-size:.78rem;font-weight:600">
+                  <span style="width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block"></span>
+                  ${isEnabled ? 'Đang hoạt động' : 'Đang bảo trì'}
+                </small>
+              </div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="plat-toggle-${key}" ${isEnabled ? 'checked' : ''} onchange="togglePlatformState('${key}', this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function togglePlatformState(key, enabled) {
+      if (currentPlatformsConfig[key]) {
+        currentPlatformsConfig[key].enabled = enabled;
+      }
+    }
+
+    async function savePlatforms() {
+      const r = await adminPost('/api/admin/platforms', { platforms: currentPlatformsConfig });
+      if (r && r.success) {
+        await loadConfig();
+      }
+    }
+
+    // ========== MAINTENANCE ==========
+    ['maint-title','maint-msg','maint-time'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateMaintenancePreview);
+    });
+
+    function updateMaintenancePreview() {
+      document.getElementById('prev-maint-title').textContent = document.getElementById('maint-title').value || 'Website đang bảo trì';
+      document.getElementById('prev-maint-msg').textContent = document.getElementById('maint-msg').value || '...';
+      const t = document.getElementById('maint-time').value;
+      document.getElementById('prev-maint-time').textContent = t ? `⏱ Dự kiến: ${t}` : '';
+    }
+
+    async function saveMaintenance() {
+      const payload = {
+        enabled: document.getElementById('maintenance-toggle').checked,
+        title: document.getElementById('maint-title').value,
+        message: document.getElementById('maint-msg').value,
+        estimatedTime: document.getElementById('maint-time').value
+      };
+      await adminPost('/api/admin/maintenance', payload);
+      await loadConfig();
+    }
+
+    // ========== BANNER ==========
+    const bannerIcons = { info: 'ℹ️', warning: '⚠️', success: '✅', error: '❌' };
+
+    function selectBannerType(type) {
+      currentBannerType = type;
+      document.querySelectorAll('.type-btn').forEach(b => {
+        b.className = b.dataset.type === type ? `type-btn active-${type}` : 'type-btn';
+      });
+      const box = document.getElementById('banner-preview-box');
+      box.className = `banner-preview ${type}`;
+      document.getElementById('banner-preview-icon').textContent = bannerIcons[type];
+      updateBannerPreview();
+    }
+
+    function updateBannerPreview() {
+      const msg = document.getElementById('banner-msg').value;
+      document.getElementById('banner-preview-text').textContent = msg || 'Nội dung banner sẽ hiện ở đây...';
+    }
+
+    async function saveBanner() {
+      const payload = {
+        enabled: document.getElementById('banner-toggle').checked,
+        message: document.getElementById('banner-msg').value,
+        type: currentBannerType
+      };
+      await adminPost('/api/admin/banner', payload);
+      await loadConfig();
+    }
+
+    // ========== BLOCK IP ==========
+    function renderIPTable(list) {
+      const tbody = document.getElementById('ip-table-body');
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><div class="eicon">✅</div><p>Chưa có IP nào bị chặn</p></div></td></tr>`;
+        return;
+      }
+      tbody.innerHTML = list.map((item, i) => `
+        <tr>
+          <td class="log-ip">${item.ip}</td>
+          <td style="color:var(--muted);font-size:.85rem">${item.reason || '—'}</td>
+          <td style="color:var(--dim);font-size:.78rem">${formatTime(item.addedAt)}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="unblockIP('${item.ip}')">Bỏ chặn</button></td>
+        </tr>
+      `).join('');
+    }
+
+    async function blockIP() {
+      const ip = document.getElementById('new-ip').value.trim();
+      const reason = document.getElementById('new-ip-reason').value.trim();
+      if (!ip) { showAlert('Vui lòng nhập địa chỉ IP', 'error'); return; }
+      await adminPost('/api/admin/ip/block', { ip, reason });
+      document.getElementById('new-ip').value = '';
+      document.getElementById('new-ip-reason').value = '';
+      await loadConfig();
+    }
+
+    async function unblockIP(ip) {
+      if (!confirm(`Bỏ chặn IP: ${ip}?`)) return;
+      await adminDelete(`/api/admin/ip/${encodeURIComponent(ip)}`);
+      await loadConfig();
+    }
+
+    // ========== BLOCK DEVICE ==========
+    function renderDeviceTable(list) {
+      const tbody = document.getElementById('device-table-body');
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><div class="eicon">✅</div><p>Chưa có thiết bị nào bị chặn</p></div></td></tr>`;
+        return;
+      }
+      tbody.innerHTML = list.map((item, i) => `
+        <tr>
+          <td style="font-family:monospace;font-size:.82rem;color:var(--yellow)">${item.pattern}</td>
+          <td style="color:var(--muted);font-size:.85rem">${item.reason || '—'}</td>
+          <td style="color:var(--dim);font-size:.78rem">${formatTime(item.addedAt)}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="unblockDevice(${i})">Xóa</button></td>
+        </tr>
+      `).join('');
+    }
+
+    async function blockDevice() {
+      const pattern = document.getElementById('new-device').value.trim();
+      const reason = document.getElementById('new-device-reason').value.trim();
+      if (!pattern) { showAlert('Vui lòng nhập pattern', 'error'); return; }
+      await adminPost('/api/admin/device/block', { pattern, reason });
+      document.getElementById('new-device').value = '';
+      document.getElementById('new-device-reason').value = '';
+      await loadConfig();
+    }
+
+    async function unblockDevice(index) {
+      if (!confirm('Xóa pattern chặn này?')) return;
+      await adminDelete(`/api/admin/device/${index}`);
+      await loadConfig();
+    }
+
+    // ========== LOGS ==========
+    async function loadLogs() {
+      try {
+        const r = await fetch(`${API}/api/admin/logs`, { headers: { 'x-admin-token': token } });
+        if (r.status === 401) { doLogout(); return; }
+        const data = await r.json();
+        const logs = data.logs || [];
+        document.getElementById('stat-log-count').textContent = logs.length;
+        const tbody = document.getElementById('log-table-body');
+        if (!logs.length) {
+          tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="eicon">📋</div><p>Chưa có dữ liệu log</p></div></td></tr>`;
+          return;
+        }
+        tbody.innerHTML = logs.map(l => `
+          <tr>
+            <td style="color:var(--dim);font-size:.78rem;white-space:nowrap">${formatTime(l.time)}</td>
+            <td class="log-ip">${l.ip || '—'}</td>
+            <td><span class="log-method ${l.method}">${l.method || 'GET'}</span></td>
+            <td style="font-size:.82rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.url}</td>
+            <td class="log-ua" title="${l.ua}">${l.ua || '—'}</td>
+          </tr>
+        `).join('');
+      } catch(e) { showAlert('Lỗi tải logs', 'error'); }
+    }
+
+    // ========== PASSWORD ==========
+    async function changePassword() {
+      const curr = document.getElementById('curr-pass').value;
+      const newp = document.getElementById('new-pass').value;
+      const conf = document.getElementById('confirm-pass').value;
+      if (!curr || !newp) { showAlert('Vui lòng điền đầy đủ thông tin', 'error'); return; }
+      if (newp !== conf) { showAlert('Mật khẩu mới không khớp', 'error'); return; }
+      if (newp.length < 6) { showAlert('Mật khẩu tối thiểu 6 ký tự', 'error'); return; }
+      const r = await adminPost('/api/admin/password', { currentPassword: curr, newPassword: newp });
+      if (r && r.success) {
+        document.getElementById('curr-pass').value = '';
+        document.getElementById('new-pass').value = '';
+        document.getElementById('confirm-pass').value = '';
+        showAlert('Đổi mật khẩu thành công! Vui lòng đăng nhập lại.', 'success');
+        setTimeout(doLogout, 2000);
+      }
+    }
+
+    // ========== HELPERS ==========
+    async function adminPost(url, body) {
+      try {
+        const r = await fetch(API + url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+          body: JSON.stringify(body)
+        });
+        if (r.status === 401) { doLogout(); return; }
+        const d = await r.json();
+        if (d.success) showAlert('Lưu thành công!', 'success');
+        else showAlert(d.error || 'Lỗi không xác định', 'error');
+        return d;
+      } catch(e) { showAlert('Lỗi kết nối server', 'error'); }
+    }
+
+    async function adminDelete(url) {
+      try {
+        const r = await fetch(API + url, {
+          method: 'DELETE',
+          headers: { 'x-admin-token': token }
+        });
+        if (r.status === 401) { doLogout(); return; }
+        const d = await r.json();
+        if (d.success) showAlert('Đã xóa thành công!', 'success');
+        else showAlert(d.error || 'Lỗi', 'error');
+        return d;
+      } catch(e) { showAlert('Lỗi kết nối', 'error'); }
+    }
+
+    function showAlert(msg, type = 'success') {
+      const bar = document.getElementById('alert-bar');
+      const el = document.createElement('div');
+      const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+      el.className = `alert-msg ${type}`;
+      el.innerHTML = `<span>${icons[type]||'📌'}</span><span>${msg}</span>`;
+      bar.appendChild(el);
+      setTimeout(() => { el.style.opacity='0'; el.style.transform='translateX(20px)'; el.style.transition='.3s'; setTimeout(()=>el.remove(),300); }, 3000);
+    }
+
+    function formatTime(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleString('vi-VN', { hour:'2-digit', minute:'2-digit', second:'2-digit', day:'2-digit', month:'2-digit' });
+    }
+
+    // ========== INIT ==========
+    if (token) {
+      showDashboard();
+    }
+
+    // Auto refresh logs every 30s when on logs section
+    setInterval(() => {
+      if (document.getElementById('sec-logs').classList.contains('active')) loadLogs();
+    }, 30000);
+  </script>
+</body>
+</html>
