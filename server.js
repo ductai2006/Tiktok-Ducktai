@@ -6,6 +6,12 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const ffmpeg = require('fluent-ffmpeg');
 
+const downloadDir = path.join(os.tmpdir(), 'downloads');
+
+if (!fs.existsSync(downloadDir)) {
+  fs.mkdirSync(downloadDir, { recursive: true });
+}
+
 // Import modular API router
 const apiEngine = require('./api');
 
@@ -493,13 +499,13 @@ async function fetchFromCDN(mediaUrl, rangeHeader) {
     const parsedHost = new URL(mediaUrl).hostname;
     if (parsedHost.includes('pinimg.com') || parsedHost.includes('pinterest.com')) {
       referer = 'https://www.pinterest.com/';
-      origin  = 'https://www.pinterest.com';
+      origin = 'https://www.pinterest.com';
       extraHeaders['Sec-Fetch-Dest'] = 'image';
       extraHeaders['Sec-Fetch-Mode'] = 'no-cors';
       extraHeaders['Sec-Fetch-Site'] = 'cross-site';
     } else if (parsedHost.includes('tiktok') || parsedHost.includes('tiktokcdn')) {
       referer = 'https://www.tiktok.com/';
-      origin  = 'https://www.tiktok.com';
+      origin = 'https://www.tiktok.com';
     } else if (
       parsedHost.includes('twimg.com') ||
       parsedHost.includes('pbs.twimg.com') ||
@@ -508,21 +514,21 @@ async function fetchFromCDN(mediaUrl, rangeHeader) {
       parsedHost.includes('x.com')
     ) {
       referer = 'https://twitter.com/';
-      origin  = 'https://twitter.com';
+      origin = 'https://twitter.com';
       extraHeaders['Sec-Fetch-Dest'] = 'video';
       extraHeaders['Sec-Fetch-Mode'] = 'cors';
       extraHeaders['Sec-Fetch-Site'] = 'same-site';
     } else if (parsedHost.includes('ytimg.com') || parsedHost.includes('youtube.com') || parsedHost.includes('googlevideo.com')) {
       referer = 'https://www.youtube.com/';
-      origin  = 'https://www.youtube.com';
+      origin = 'https://www.youtube.com';
     } else if (parsedHost.includes('cdninstagram.com') || parsedHost.includes('instagram.com')) {
       referer = 'https://www.instagram.com/';
-      origin  = 'https://www.instagram.com';
+      origin = 'https://www.instagram.com';
     } else if (parsedHost.includes('fbcdn.net') || parsedHost.includes('facebook.com')) {
       referer = 'https://www.facebook.com/';
-      origin  = 'https://www.facebook.com';
+      origin = 'https://www.facebook.com';
     }
-  } catch (e) {}
+  } catch (e) { }
 
   const reqHeaders = {
     'User-Agent':
@@ -764,7 +770,7 @@ app.get('/api/youtube-audio', async (req, res) => {
     // Clean up after sending
     stream.on('end', () => {
       setTimeout(() => {
-        try { fs.unlinkSync(filePath); } catch (e) {}
+        try { fs.unlinkSync(filePath); } catch (e) { }
       }, 5000);
     });
 
