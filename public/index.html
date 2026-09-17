@@ -1,29 +1,33 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TikFlow - Tải Video TikTok, YouTube, Pinterest, Twitter/X Không Logo HD 2026</title>
-  <meta name="description" content="TikFlow giúp bạn tải video, hình ảnh, nhạc MP3 từ TikTok, YouTube, Pinterest, Twitter/X, Instagram, Facebook miễn phí, chất lượng cao không logo.">
+  <meta name="description"
+    content="TikFlow là một công cụ giúp bạn tải video, hình ảnh, nhạc MP3 từ TikTok, YouTube, Pinterest, Twitter/X, Instagram, Facebook miễn phí, chất lượng cao không logo.">
   <!-- Google Fonts - Be Vietnam Pro & Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <!-- Main Stylesheet -->
   <link rel="stylesheet" href="css/style.css?v=10">
   <!-- Anti DevTools Protection -->
   <script>
-    (function(){
+    (function () {
       // Disable right-click context menu
-      document.addEventListener('contextmenu', function(e){ e.preventDefault(); return false; });
-      
+      document.addEventListener('contextmenu', function (e) { e.preventDefault(); return false; });
+
       // Disable F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
-      document.addEventListener('keydown', function(e){
-        if(
+      document.addEventListener('keydown', function (e) {
+        if (
           e.key === 'F12' ||
           (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) ||
           (e.ctrlKey && (e.key === 'U' || e.key === 'u' || e.key === 'S' || e.key === 's'))
-        ){
+        ) {
           e.preventDefault();
           e.stopPropagation();
           return false;
@@ -49,15 +53,16 @@
 
       // Console trap (clears and warns)
       var _cl = console.log;
-      console.log = function(){};
-      console.warn = function(){};
-      console.error = function(){};
-      console.info = function(){};
-      console.dir = function(){};
-      console.debug = function(){};
+      console.log = function () { };
+      console.warn = function () { };
+      console.error = function () { };
+      console.info = function () { };
+      console.dir = function () { };
+      console.debug = function () { };
     })();
   </script>
 </head>
+
 <body>
 
   <!-- Background Glow Effects -->
@@ -71,7 +76,8 @@
     <header class="header">
       <div class="logo">
         <span class="logo-icon">
-          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -79,7 +85,8 @@
         </span>
         <h1 class="logo-text">Tik<span>Flow</span></h1>
       </div>
-      <p class="tagline">Tải video, nhạc & hình ảnh không logo HD từ TikTok, YouTube, Pinterest, Twitter/X, Instagram, Facebook</p>
+      <p class="tagline">Tải video, nhạc & hình ảnh không logo HD từ TikTok, YouTube, Pinterest, Twitter/X, Instagram,
+        Facebook</p>
     </header>
 
     <!-- Search Section -->
@@ -87,14 +94,17 @@
       <div class="search-input-row">
         <div class="input-wrapper">
           <span class="input-icon">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
             </svg>
           </span>
-          <input type="text" id="tiktok-url" placeholder="Dán liên kết TikTok, YouTube, Pinterest, Twitter/X, Instagram tại đây..." autocomplete="off">
+          <input type="text" id="tiktok-url"
+            placeholder="Dán liên kết TikTok, YouTube, Pinterest, Twitter/X, Instagram tại đây..." autocomplete="off">
           <button id="btn-paste" class="btn-icon" title="Dán từ Clipboard">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
               <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
             </svg>
@@ -108,7 +118,8 @@
       </div>
 
       <!-- Supported Platform Badges -->
-      <div id="supported-platforms-bar" style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:16px;flex-wrap:wrap">
+      <div id="supported-platforms-bar"
+        style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:16px;flex-wrap:wrap">
         <!-- Rendered dynamically by app.js -->
       </div>
     </section>
@@ -153,36 +164,64 @@
               <img id="video-cover" src="" alt="Video Cover">
               <div class="video-controls" id="video-controls">
                 <button id="btn-zoom-out" title="Thu nhỏ">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
                 </button>
                 <button id="btn-rewind" title="Lùi 5 giây">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="11 19 2 12 11 5 11 19"></polygon>
+                    <polygon points="22 19 13 12 22 5 22 19"></polygon>
+                  </svg>
                 </button>
                 <button id="btn-step-back" title="Lùi 1 khung hình">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="15 18 9 12 15 6 15 18"></polygon></svg>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="15 18 9 12 15 6 15 18"></polygon>
+                  </svg>
                 </button>
                 <button id="btn-step-forward" title="Tiến 1 khung hình">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="9 18 15 12 9 6 9 18"></polygon></svg>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="9 18 15 12 9 6 9 18"></polygon>
+                  </svg>
                 </button>
                 <button id="btn-forward" title="Tiến 5 giây">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 19 22 12 13 5 13 19"></polygon><polygon points="2 19 11 12 2 5 2 19"></polygon></svg>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 19 22 12 13 5 13 19"></polygon>
+                    <polygon points="2 19 11 12 2 5 2 19"></polygon>
+                  </svg>
                 </button>
                 <button id="btn-zoom-in" title="Phóng to">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
                 </button>
                 <button id="btn-fullscreen" title="Toàn màn hình">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path
+                      d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
+                    </path>
+                  </svg>
                 </button>
               </div>
               <button class="mute-btn" id="mute-btn" title="Bật/Tắt âm">
-                <svg id="icon-muted" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <svg id="icon-muted" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                  stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="1" y1="1" x2="23" y2="23"></line>
                   <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
                   <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
                   <line x1="12" y1="19" x2="12" y2="23"></line>
                   <line x1="8" y1="23" x2="16" y2="23"></line>
                 </svg>
-                <svg id="icon-unmuted" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                <svg id="icon-unmuted" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                  stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
                   <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                   <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                   <line x1="12" y1="19" x2="12" y2="23"></line>
@@ -194,7 +233,8 @@
                   <svg id="icon-play" viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
                     <path d="M8 5v14l11-7z"></path>
                   </svg>
-                  <svg id="icon-pause" viewBox="0 0 24 24" width="28" height="28" fill="currentColor" style="display:none;">
+                  <svg id="icon-pause" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"
+                    style="display:none;">
                     <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path>
                   </svg>
                 </span>
@@ -220,7 +260,9 @@
                 <h3 id="author-nickname">Tên tác giả</h3>
                 <span id="author-verified" class="verified-badge hidden" title="Tài khoản xác minh">
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
+                    <path
+                      d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z">
+                    </path>
                   </svg>
                 </span>
                 <span id="platform-badge" class="platform-badge-pill"></span>
@@ -236,7 +278,9 @@
           <div class="stats-container">
             <div class="stat-chip" title="Lượt thích">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" class="icon-heart">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path>
+                <path
+                  d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z">
+                </path>
               </svg>
               <span id="stat-likes">0</span>
             </div>
@@ -248,12 +292,15 @@
             </div>
             <div class="stat-chip" title="Chia sẻ">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" class="icon-share">
-                <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"></path>
+                <path
+                  d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z">
+                </path>
               </svg>
               <span id="stat-shares">0</span>
             </div>
             <div class="stat-chip" title="Lượt xem">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-views">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" class="icon-views">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                 <circle cx="12" cy="12" r="3"></circle>
               </svg>
@@ -264,12 +311,13 @@
           <!-- Download Action List -->
           <div class="download-actions">
             <h4 class="action-title">Lựa chọn tải xuống:</h4>
-            
+
             <div id="video-download-options">
               <!-- Button: No Watermark Video -->
               <button id="btn-dl-nowatermark" class="btn-dl btn-primary-dl">
                 <span class="btn-dl-icon">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                     <polyline points="7 10 12 15 17 10"></polyline>
                     <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -280,11 +328,12 @@
                   <span class="sub-text">Độ phân giải cao (MP4)</span>
                 </div>
               </button>
-  
+
               <!-- Button: Watermark Video -->
               <button id="btn-dl-watermark" class="btn-dl btn-secondary-dl">
                 <span class="btn-dl-icon">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                     <polyline points="7 10 12 15 17 10"></polyline>
                     <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -301,7 +350,8 @@
             <div id="image-download-options" class="hidden">
               <button id="btn-dl-all-images" class="btn-dl btn-primary-dl">
                 <span class="btn-dl-icon">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                     <circle cx="8.5" cy="8.5" r="1.5"></circle>
                     <polyline points="21 15 16 10 5 21"></polyline>
@@ -317,7 +367,8 @@
             <!-- Combined Smart Download Button (video or images depending on content type) -->
             <button id="btn-dl-content" class="btn-dl btn-primary-dl">
               <span class="btn-dl-icon">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="7 10 12 15 17 10"></polyline>
                   <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -332,7 +383,8 @@
             <!-- Button: Audio Only MP3 -->
             <button id="btn-dl-audio" class="btn-dl btn-secondary-dl">
               <span class="btn-dl-icon">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
                   <path d="M9 18V5l12-2v13"></path>
                   <circle cx="6" cy="18" r="3"></circle>
                   <circle cx="18" cy="16" r="3"></circle>
@@ -345,7 +397,11 @@
             </button>
             <button id="btn-dl-frames" class="btn-dl btn-secondary-dl">
               <span class="btn-dl-icon">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M7 6v12M17 6v12M2 12h20M7 2l-3 4M17 2l3 4M7 22l-3-4M17 22l3-4"/></svg>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="6" width="20" height="12" rx="2" />
+                  <path d="M7 6v12M17 6v12M2 12h20M7 2l-3 4M17 2l3 4M7 22l-3-4M17 22l3-4" />
+                </svg>
               </span>
               <div class="btn-dl-text">
                 <span class="main-text">Tải Khung Hình</span>
@@ -356,10 +412,10 @@
         </div>
       </div>
     </section>
-<section id="frames-section" class="frames-section card hidden">
-  <h3 class="section-title">Khung Hình Trích Xuất</h3>
-  <div class="frames-grid" id="frames-grid"></div>
-</section>
+    <section id="frames-section" class="frames-section card hidden">
+      <h3 class="section-title">Khung Hình Trích Xuất</h3>
+      <div class="frames-grid" id="frames-grid"></div>
+    </section>
 
     <!-- Info Section -->
     <section class="info-section">
@@ -367,7 +423,8 @@
       <div class="features-grid">
         <div class="feature-card card">
           <div class="feature-icon">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
               <line x1="9" y1="3" x2="9" y2="21"></line>
             </svg>
@@ -377,7 +434,8 @@
         </div>
         <div class="feature-card card">
           <div class="feature-icon">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 18V5l12-2v13"></path>
               <circle cx="6" cy="18" r="3"></circle>
               <circle cx="18" cy="16" r="3"></circle>
@@ -388,7 +446,8 @@
         </div>
         <div class="feature-card card">
           <div class="feature-icon">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
             </svg>
           </div>
@@ -405,19 +464,22 @@
         <li>
           <span class="step-num">1</span>
           <div class="step-desc">
-            <strong>Sao chép liên kết video:</strong> Mở ứng dụng TikTok, nhấn vào biểu tượng <strong>Chia sẻ</strong> và chọn <strong>Sao chép liên kết</strong>.
+            <strong>Sao chép liên kết video:</strong> Mở ứng dụng TikTok, nhấn vào biểu tượng <strong>Chia sẻ</strong>
+            và chọn <strong>Sao chép liên kết</strong>.
           </div>
         </li>
         <li>
           <span class="step-num">2</span>
           <div class="step-desc">
-            <strong>Dán liên kết vào TikFlow:</strong> Nhấn nút <strong>Dán</strong> hoặc nhập URL video vừa copy vào ô tìm kiếm ở trên.
+            <strong>Dán liên kết vào TikFlow:</strong> Nhấn nút <strong>Dán</strong> hoặc nhập URL video vừa copy vào ô
+            tìm kiếm ở trên.
           </div>
         </li>
         <li>
           <span class="step-num">3</span>
           <div class="step-desc">
-            <strong>Tải xuống:</strong> Nhấn nút <strong>Tải Video</strong>, sau đó chọn loại file mong muốn (Video Không Logo hoặc MP3) để lưu về thiết bị.
+            <strong>Tải xuống:</strong> Nhấn nút <strong>Tải Video</strong>, sau đó chọn loại file mong muốn (Video
+            Không Logo hoặc MP3) để lưu về thiết bị.
           </div>
         </li>
       </ol>
@@ -431,9 +493,11 @@
   <footer class="footer">
     <div class="footer-content">
       <p>&copy; 2026 TikFlow. Thiết kế dành cho trải nghiệm tốt nhất.</p>
-      <p class="disclaimer">Lưu ý: Chúng tôi không lưu trữ bất kỳ nội dung nào trên máy chủ. Mọi video thuộc bản quyền của người sở hữu tương ứng.</p>
+      <p class="disclaimer">Lưu ý: Chúng tôi không lưu trữ bất kỳ nội dung nào trên máy chủ. Mọi video thuộc bản quyền
+        của người sở hữu tương ứng.</p>
     </div>
   </footer>
   <script src="js/app.js?v=10"></script>
 </body>
+
 </html>

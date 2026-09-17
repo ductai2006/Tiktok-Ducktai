@@ -5,53 +5,283 @@ const handleTwitter = require('./twitter');
 const handleInstagram = require('./instagram');
 const handleFacebook = require('./facebook');
 
+
+/* ============================================================
+ * DETECT PLATFORM
+ * ============================================================
+ */
+
 function detectPlatform(url) {
-  if (!url) return 'unknown';
-  const u = url.toLowerCase();
-  if (u.includes('tiktok.com')) return 'tiktok';
-  if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
-  if (u.includes('pinterest.com') || u.includes('pin.it')) return 'pinterest';
-  if (u.includes('twitter.com') || u.includes('x.com')) return 'x';
-  if (u.includes('instagram.com') || u.includes('instagr.am')) return 'instagram';
-  if (u.includes('facebook.com') || u.includes('fb.watch') || u.includes('fb.com')) return 'facebook';
+  if (!url || typeof url !== 'string') {
+    return 'unknown';
+  }
+
+  const u = url.trim().toLowerCase();
+
+
+  // TikTok
+  if (
+    u.includes('tiktok.com') ||
+    u.includes('vm.tiktok.com') ||
+    u.includes('vt.tiktok.com')
+  ) {
+    return 'tiktok';
+  }
+
+
+  // YouTube
+  if (
+    u.includes('youtube.com') ||
+    u.includes('youtu.be')
+  ) {
+    return 'youtube';
+  }
+
+
+  // Pinterest
+  if (
+    u.includes('pinterest.com') ||
+    u.includes('pin.it')
+  ) {
+    return 'pinterest';
+  }
+
+
+  // Twitter / X
+  if (
+    u.includes('twitter.com') ||
+    u.includes('x.com')
+  ) {
+    return 'x';
+  }
+
+
+  // Instagram
+  if (
+    u.includes('instagram.com') ||
+    u.includes('instagr.am')
+  ) {
+    return 'instagram';
+  }
+
+
+  // Facebook
+  if (
+    u.includes('facebook.com') ||
+    u.includes('fb.watch') ||
+    u.includes('fb.com')
+  ) {
+    return 'facebook';
+  }
+
+
   return 'unknown';
 }
 
+
+/* ============================================================
+ * RUN HANDLER
+ * ============================================================
+ */
+
+async function runHandler(name, handler, url) {
+  try {
+    console.log(
+      `[API ROUTER] Calling ${name} handler`
+    );
+
+    const data = await handler(url);
+
+
+    if (!data) {
+      console.log(
+        `[API ROUTER] ${name} returned no data`
+      );
+
+      return null;
+    }
+
+
+    console.log(
+      `[API ROUTER] ${name} handler succeeded`
+    );
+
+    return data;
+
+  } catch (error) {
+    console.error(
+      `[API ROUTER] ${name} handler failed:`,
+      error && error.message
+        ? error.message
+        : error
+    );
+
+    return null;
+  }
+}
+
+
+/* ============================================================
+ * EXTRACT MEDIA
+ * ============================================================
+ */
+
 async function extractMedia(url) {
   const platform = detectPlatform(url);
-  console.log(`[API ROUTER] Processing platform "${platform}" for URL: ${url}`);
+
+
+  console.log(
+    `[API ROUTER] Processing platform "${platform}" for URL: ${url}`
+  );
+
+
+  /* ==========================================================
+   * UNKNOWN PLATFORM
+   * ==========================================================
+   */
+
+  if (platform === 'unknown') {
+    console.log(
+      '[API ROUTER] Unknown platform'
+    );
+
+    return {
+      platform: 'unknown',
+      data: null
+    };
+  }
+
 
   let data = null;
 
-  if (platform === 'tiktok') {
-    data = await handleTikTok(url);
-  } else if (platform === 'pinterest') {
-    data = await handlePinterest(url);
-  } else if (platform === 'youtube') {
-    data = await handleYouTube(url);
-  } else if (platform === 'x') {
-    data = await handleTwitter(url);
-  } else if (platform === 'instagram') {
-    data = await handleInstagram(url);
-  } else if (platform === 'facebook') {
-    data = await handleFacebook(url);
+
+  /* ==========================================================
+   * CALL ONLY CORRECT HANDLER
+   *
+   * Không fallback nền tảng này sang nền tảng khác.
+   * ==========================================================
+   */
+
+  switch (platform) {
+
+    /* --------------------------------------------------------
+     * TIKTOK
+     * --------------------------------------------------------
+     */
+
+    case 'tiktok':
+      data = await runHandler(
+        'TikTok',
+        handleTikTok,
+        url
+      );
+      break;
+
+
+    /* --------------------------------------------------------
+     * PINTEREST
+     * --------------------------------------------------------
+     */
+
+    case 'pinterest':
+      data = await runHandler(
+        'Pinterest',
+        handlePinterest,
+        url
+      );
+      break;
+
+
+    /* --------------------------------------------------------
+     * YOUTUBE
+     * --------------------------------------------------------
+     */
+
+    case 'youtube':
+      data = await runHandler(
+        'YouTube',
+        handleYouTube,
+        url
+      );
+      break;
+
+
+    /* --------------------------------------------------------
+     * TWITTER / X
+     * --------------------------------------------------------
+     */
+
+    case 'x':
+      data = await runHandler(
+        'Twitter/X',
+        handleTwitter,
+        url
+      );
+      break;
+
+
+    /* --------------------------------------------------------
+     * INSTAGRAM
+     * --------------------------------------------------------
+     */
+
+    case 'instagram':
+      data = await runHandler(
+        'Instagram',
+        handleInstagram,
+        url
+      );
+      break;
+
+
+    /* --------------------------------------------------------
+     * FACEBOOK
+     * --------------------------------------------------------
+     */
+
+    case 'facebook':
+      data = await runHandler(
+        'Facebook',
+        handleFacebook,
+        url
+      );
+      break;
   }
 
-  // Cross-fallback attempts if primary platform handler returned null
+
+  /* ==========================================================
+   * NO MEDIA
+   * ==========================================================
+   */
+
   if (!data) {
-    if (platform === 'pinterest') data = await handlePinterest(url);
-    if (!data) data = await handleTikTok(url);
-    if (!data) data = await handleYouTube(url);
-    if (!data) data = await handleTwitter(url);
-    if (!data) data = await handleFacebook(url);
+    console.log(
+      `[API ROUTER] No media found for ${platform}`
+    );
   }
 
-  return { platform, data };
+
+  /* ==========================================================
+   * RETURN
+   * ==========================================================
+   */
+
+  return {
+    platform,
+    data
+  };
 }
+
+
+/* ============================================================
+ * EXPORT
+ * ============================================================
+ */
 
 module.exports = {
   detectPlatform,
   extractMedia,
+
   handleTikTok,
   handlePinterest,
   handleYouTube,
