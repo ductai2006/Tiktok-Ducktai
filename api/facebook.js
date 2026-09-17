@@ -2,8 +2,51 @@ const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const os = require('os');
 
-const YT_DLP = 'python';
+/* ============================================================
+ * CONFIG
+ * ============================================================
+ */
+
+// Windows:
+//   python
+//
+// Linux/Vercel:
+//   python3
+//
+// Có thể override bằng biến môi trường:
+//   YT_DLP_PYTHON=python3
+const YT_DLP =
+  process.env.YT_DLP_PYTHON ||
+  (process.platform === 'win32' ? 'python' : 'python3');
+
+// curl:
+// Windows -> curl.exe
+// Linux/Vercel -> curl
+const CURL =
+  process.env.CURL_BIN ||
+  (process.platform === 'win32' ? 'curl.exe' : 'curl');
+
+// ffmpeg:
+// Windows -> ffmpeg
+// Linux/Vercel -> ffmpeg
+const FFMPEG =
+  process.env.FFMPEG_BIN ||
+  'ffmpeg';
+
+
+/* ============================================================
+ * COOKIE
+ * ============================================================
+ *
+ * Cookie vẫn nằm trong project:
+ *
+ * cookies/facebook.txt
+ *
+ * Không ghi ngược vào cookie trên Vercel.
+ * ============================================================
+ */
 
 const COOKIE_FILE = path.join(
   process.cwd(),
@@ -11,8 +54,29 @@ const COOKIE_FILE = path.join(
   'facebook.txt'
 );
 
+
+/* ============================================================
+ * VERCEL / LOCAL TEMP DIRECTORY
+ * ============================================================
+ *
+ * KHÔNG dùng:
+ *
+ *   path.join(process.cwd(), 'facebook')
+ *
+ * vì trên Vercel:
+ *
+ *   /var/task
+ *
+ * là filesystem chỉ đọc.
+ *
+ * /tmp là thư mục ghi được trong runtime.
+ * ============================================================
+ */
+
+const TEMP_DIR = os.tmpdir();
+
 const DOWNLOAD_DIR = path.join(
-  process.cwd(),
+  TEMP_DIR,
   'facebook'
 );
 
@@ -21,18 +85,54 @@ const IMAGE_DIR = path.join(
   'images'
 );
 
+
+/* ============================================================
+ * USER AGENT
+ * ============================================================
+ */
+
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
   'AppleWebKit/537.36 (KHTML, like Gecko) ' +
   'Chrome/140.0.0.0 Safari/537.36';
 
-if (!fs.existsSync(DOWNLOAD_DIR)) {
-  fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+
+/* ============================================================
+ * CREATE TEMP DIRECTORIES
+ * ============================================================
+ */
+
+function ensureDirectories() {
+  try {
+    if (!fs.existsSync(DOWNLOAD_DIR)) {
+      fs.mkdirSync(
+        DOWNLOAD_DIR,
+        {
+          recursive: true
+        }
+      );
+    }
+
+    if (!fs.existsSync(IMAGE_DIR)) {
+      fs.mkdirSync(
+        IMAGE_DIR,
+        {
+          recursive: true
+        }
+      );
+    }
+
+    return true;
+  } catch (error) {
+    console.log(
+      `[FACEBOOK] Cannot create temp directory: ${error.message}`
+    );
+
+    return false;
+  }
 }
 
-if (!fs.existsSync(IMAGE_DIR)) {
-  fs.mkdirSync(IMAGE_DIR, { recursive: true });
-}
+ensureDirectories();
 
 
 /* ============================================================
@@ -40,31 +140,53 @@ if (!fs.existsSync(IMAGE_DIR)) {
  * ============================================================
  */
 
-function runCommand(command, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    execFile(
-      command,
-      args,
-      {
-        maxBuffer: 100 * 1024 * 1024,
-        windowsHide: true,
-        ...options
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          error.stdout = stdout;
-          error.stderr = stderr;
-          reject(error);
-          return;
-        }
+function runCommand(
+  command,
+  args,
+  options = {}
+) {
+  return new Promise(
+    (resolve, reject) => {
+      execFile(
+        command,
+        args,
+        {
+          maxBuffer:
+            100 * 1024 * 1024,
 
-        resolve({
-          stdout: stdout || '',
-          stderr: stderr || ''
-        });
-      }
-    );
-  });
+          windowsHide:
+            true,
+
+          ...options
+        },
+        (
+          error,
+          stdout,
+          stderr
+        ) => {
+          if (error) {
+            error.stdout =
+              stdout || '';
+
+            error.stderr =
+              stderr || '';
+
+            reject(error);
+
+            return;
+          }
+
+          resolve({
+            stdout:
+              stdout || '',
+
+            stderr:
+              stderr || ''
+          });
+        }
+      );
+    }
+  );
 }
 
 
@@ -74,43 +196,64 @@ function runCommand(command, args, options = {}) {
  */
 
 function runYtDlp(args) {
-  return new Promise((resolve, reject) => {
-    console.log(
-      `[FACEBOOK] Running: ${YT_DLP} -m yt_dlp ${args.join(' ')}`
-    );
+  return new Promise(
+    (resolve, reject) => {
+      console.log(
+        `[FACEBOOK] Running: ${YT_DLP} -m yt_dlp ${args.join(' ')}`
+      );
 
-    execFile(
-      YT_DLP,
-      ['-m', 'yt_dlp', ...args],
-      {
-        maxBuffer: 100 * 1024 * 1024,
-        windowsHide: true
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          console.log(
-            `[FACEBOOK ERROR] yt-dlp exited with code ${error.code}`
-          );
+      execFile(
+        YT_DLP,
+        [
+          '-m',
+          'yt_dlp',
+          ...args
+        ],
+        {
+          maxBuffer:
+            100 * 1024 * 1024,
 
-          if (stderr) {
-            console.log(`[FACEBOOK STDERR] ${stderr}`);
+          windowsHide:
+            true
+        },
+        (
+          error,
+          stdout,
+          stderr
+        ) => {
+          if (error) {
+            console.log(
+              `[FACEBOOK ERROR] yt-dlp exited with code ${error.code}`
+            );
+
+            if (stderr) {
+              console.log(
+                `[FACEBOOK STDERR] ${stderr}`
+              );
+            }
+
+            if (stdout) {
+              console.log(
+                `[FACEBOOK STDOUT] ${stdout}`
+              );
+            }
+
+            reject(error);
+
+            return;
           }
 
-          if (stdout) {
-            console.log(`[FACEBOOK STDOUT] ${stdout}`);
-          }
+          resolve({
+            stdout:
+              stdout || '',
 
-          reject(error);
-          return;
+            stderr:
+              stderr || ''
+          });
         }
-
-        resolve({
-          stdout: stdout || '',
-          stderr: stderr || ''
-        });
-      }
-    );
-  });
+      );
+    }
+  );
 }
 
 
@@ -121,15 +264,30 @@ function runYtDlp(args) {
 
 function safeName(name) {
   return String(name || '')
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
-    .replace(/\s+/g, ' ')
+    .replace(
+      /[<>:"/\\|?*\x00-\x1F]/g,
+      '_'
+    )
+    .replace(
+      /\s+/g,
+      ' '
+    )
     .trim()
-    .slice(0, 150);
+    .slice(
+      0,
+      150
+    );
 }
 
 
-function getExtension(format, fallback) {
-  if (format && format.ext) {
+function getExtension(
+  format,
+  fallback
+) {
+  if (
+    format &&
+    format.ext
+  ) {
     return format.ext;
   }
 
@@ -151,29 +309,40 @@ function parseNumber(value) {
     return null;
   }
 
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
+  if (
+    typeof value === 'number'
+  ) {
+    return Number.isFinite(value)
+      ? value
+      : null;
   }
 
-  const str = String(value)
-    .replace(/,/g, '')
-    .trim();
+  const str =
+    String(value)
+      .replace(/,/g, '')
+      .trim();
 
-  const match = str.match(
-    /(\d+(?:\.\d+)?)([KMB])?/i
-  );
+  const match =
+    str.match(
+      /(\d+(?:\.\d+)?)([KMB])?/i
+    );
 
   if (!match) {
     return null;
   }
 
-  let number = Number(match[1]);
+  let number =
+    Number(match[1]);
 
-  if (!Number.isFinite(number)) {
+  if (
+    !Number.isFinite(number)
+  ) {
     return null;
   }
 
-  const suffix = String(match[2] || '').toUpperCase();
+  const suffix =
+    String(match[2] || '')
+      .toUpperCase();
 
   if (suffix === 'K') {
     number *= 1000;
@@ -192,7 +361,7 @@ function parseNumber(value) {
 
 
 /* ============================================================
- * CLEAN FACEBOOK URL
+ * DECODE FACEBOOK VALUE
  * ============================================================
  */
 
@@ -201,19 +370,48 @@ function decodeFacebookValue(value) {
     return null;
   }
 
-  let result = String(value);
+  let result =
+    String(value);
 
   try {
-    result = result
-      .replace(/&amp;/g, '&')
-      .replace(/&quot;/g, '"')
-      .replace(/&#039;/g, "'")
-      .replace(/&#x27;/g, "'")
-      .replace(/\\u0025/g, '%')
-      .replace(/\\u0026/g, '&')
-      .replace(/\\u003D/gi, '=')
-      .replace(/\\u002F/gi, '/')
-      .replace(/\\\//g, '/');
+    result =
+      result
+        .replace(
+          /&amp;/g,
+          '&'
+        )
+        .replace(
+          /&quot;/g,
+          '"'
+        )
+        .replace(
+          /&#039;/g,
+          "'"
+        )
+        .replace(
+          /&#x27;/g,
+          "'"
+        )
+        .replace(
+          /\\u0025/g,
+          '%'
+        )
+        .replace(
+          /\\u0026/g,
+          '&'
+        )
+        .replace(
+          /\\u003D/gi,
+          '='
+        )
+        .replace(
+          /\\u002F/gi,
+          '/'
+        )
+        .replace(
+          /\\\//g,
+          '/'
+        );
   } catch (_) { }
 
   return result;
@@ -222,22 +420,25 @@ function decodeFacebookValue(value) {
 
 /* ============================================================
  * GET META FROM HTML
- *
- * Facebook có thể thay đổi cấu trúc HTML.
- * Hàm này cố gắng lấy metadata từ nhiều dạng khác nhau.
  * ============================================================
  */
 
-function extractMetaContent(html, names) {
+function extractMetaContent(
+  html,
+  names
+) {
   if (!html) {
     return null;
   }
 
-  for (const name of names) {
-    const escaped = name.replace(
-      /[.*+?^${}()|[\]\\]/g,
-      '\\$&'
-    );
+  for (
+    const name of names
+  ) {
+    const escaped =
+      name.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        '\\$&'
+      );
 
     const patterns = [
       new RegExp(
@@ -261,11 +462,19 @@ function extractMetaContent(html, names) {
       )
     ];
 
-    for (const regex of patterns) {
-      const match = html.match(regex);
+    for (
+      const regex of patterns
+    ) {
+      const match =
+        html.match(regex);
 
-      if (match && match[1]) {
-        return decodeFacebookValue(match[1]);
+      if (
+        match &&
+        match[1]
+      ) {
+        return decodeFacebookValue(
+          match[1]
+        );
       }
     }
   }
@@ -275,13 +484,16 @@ function extractMetaContent(html, names) {
 
 
 /* ============================================================
- * EXTRACT AUTHOR / STATS FROM FACEBOOK HTML
+ * FACEBOOK METADATA
  * ============================================================
  */
 
-function extractFacebookMetadata(html) {
+function extractFacebookMetadata(
+  html
+) {
   const metadata = {
     title: null,
+
     description: null,
 
     author: {
@@ -303,10 +515,7 @@ function extractFacebookMetadata(html) {
   }
 
 
-  /* ----------------------------------------------------------
-   * TITLE
-   * ----------------------------------------------------------
-   */
+  /* TITLE */
 
   metadata.title =
     extractMetaContent(
@@ -318,10 +527,7 @@ function extractFacebookMetadata(html) {
     );
 
 
-  /* ----------------------------------------------------------
-   * DESCRIPTION
-   * ----------------------------------------------------------
-   */
+  /* DESCRIPTION */
 
   metadata.description =
     extractMetaContent(
@@ -334,10 +540,7 @@ function extractFacebookMetadata(html) {
     );
 
 
-  /* ----------------------------------------------------------
-   * AVATAR
-   * ----------------------------------------------------------
-   */
+  /* AVATAR */
 
   metadata.author.avatar =
     extractMetaContent(
@@ -349,10 +552,7 @@ function extractFacebookMetadata(html) {
     );
 
 
-  /* ----------------------------------------------------------
-   * AUTHOR NAME
-   * ----------------------------------------------------------
-   */
+  /* AUTHOR */
 
   metadata.author.name =
     extractMetaContent(
@@ -364,17 +564,7 @@ function extractFacebookMetadata(html) {
     );
 
 
-  /*
-   * Facebook HTML thường chứa các JSON field:
-   *
-   * actor
-   * actors
-   * owner
-   * profile_name
-   * name
-   *
-   * Thử tìm tên người đăng.
-   */
+  /* JSON NAME */
 
   const namePatterns = [
     /"actor"\s*:\s*\{[\s\S]{0,500}?"name"\s*:\s*"([^"]+)"/i,
@@ -388,22 +578,27 @@ function extractFacebookMetadata(html) {
     /"actor_name"\s*:\s*"([^"]+)"/i
   ];
 
-  for (const regex of namePatterns) {
-    const match = html.match(regex);
+  for (
+    const regex of namePatterns
+  ) {
+    const match =
+      html.match(regex);
 
-    if (match && match[1]) {
+    if (
+      match &&
+      match[1]
+    ) {
       metadata.author.name =
-        decodeFacebookValue(match[1]);
+        decodeFacebookValue(
+          match[1]
+        );
 
       break;
     }
   }
 
 
-  /* ----------------------------------------------------------
-   * AUTHOR UID
-   * ----------------------------------------------------------
-   */
+  /* UID */
 
   const idPatterns = [
     /"actor"\s*:\s*\{[\s\S]{0,500}?"id"\s*:\s*"(\d+)"/i,
@@ -419,22 +614,29 @@ function extractFacebookMetadata(html) {
     /"owner_id"\s*:\s*"(\d+)"/i
   ];
 
-  for (const regex of idPatterns) {
-    const match = html.match(regex);
+  for (
+    const regex of idPatterns
+  ) {
+    const match =
+      html.match(regex);
 
-    if (match && match[1]) {
-      metadata.author.id = match[1];
+    if (
+      match &&
+      match[1]
+    ) {
+      metadata.author.id =
+        match[1];
+
       break;
     }
   }
 
 
-  /* ----------------------------------------------------------
-   * AVATAR JSON FALLBACK
-   * ----------------------------------------------------------
-   */
+  /* AVATAR FALLBACK */
 
-  if (!metadata.author.avatar) {
+  if (
+    !metadata.author.avatar
+  ) {
     const avatarPatterns = [
       /"profile_picture"\s*:\s*\{[\s\S]{0,300}?"uri"\s*:\s*"([^"]+)"/i,
 
@@ -445,12 +647,20 @@ function extractFacebookMetadata(html) {
       /"profile_image_url"\s*:\s*"([^"]+)"/i
     ];
 
-    for (const regex of avatarPatterns) {
-      const match = html.match(regex);
+    for (
+      const regex of avatarPatterns
+    ) {
+      const match =
+        html.match(regex);
 
-      if (match && match[1]) {
+      if (
+        match &&
+        match[1]
+      ) {
         metadata.author.avatar =
-          decodeFacebookValue(match[1]);
+          decodeFacebookValue(
+            match[1]
+          );
 
         break;
       }
@@ -458,10 +668,7 @@ function extractFacebookMetadata(html) {
   }
 
 
-  /* ----------------------------------------------------------
-   * LIKE
-   * ----------------------------------------------------------
-   */
+  /* LIKES */
 
   const likePatterns = [
     /"like_count"\s*:\s*(\d+)/i,
@@ -473,22 +680,27 @@ function extractFacebookMetadata(html) {
     /"reaction_count"\s*:\s*\{[\s\S]{0,300}?"count"\s*:\s*(\d+)/i
   ];
 
-  for (const regex of likePatterns) {
-    const match = html.match(regex);
+  for (
+    const regex of likePatterns
+  ) {
+    const match =
+      html.match(regex);
 
-    if (match && match[1]) {
+    if (
+      match &&
+      match[1]
+    ) {
       metadata.statistics.likes =
-        parseNumber(match[1]);
+        parseNumber(
+          match[1]
+        );
 
       break;
     }
   }
 
 
-  /* ----------------------------------------------------------
-   * COMMENT
-   * ----------------------------------------------------------
-   */
+  /* COMMENTS */
 
   const commentPatterns = [
     /"comment_count"\s*:\s*(\d+)/i,
@@ -500,22 +712,27 @@ function extractFacebookMetadata(html) {
     /"comment_count"\s*:\s*\{[\s\S]{0,300}?"count"\s*:\s*(\d+)/i
   ];
 
-  for (const regex of commentPatterns) {
-    const match = html.match(regex);
+  for (
+    const regex of commentPatterns
+  ) {
+    const match =
+      html.match(regex);
 
-    if (match && match[1]) {
+    if (
+      match &&
+      match[1]
+    ) {
       metadata.statistics.comments =
-        parseNumber(match[1]);
+        parseNumber(
+          match[1]
+        );
 
       break;
     }
   }
 
 
-  /* ----------------------------------------------------------
-   * SHARE
-   * ----------------------------------------------------------
-   */
+  /* SHARES */
 
   const sharePatterns = [
     /"share_count"\s*:\s*(\d+)/i,
@@ -527,22 +744,27 @@ function extractFacebookMetadata(html) {
     /"share_count"\s*:\s*\{[\s\S]{0,300}?"count"\s*:\s*(\d+)/i
   ];
 
-  for (const regex of sharePatterns) {
-    const match = html.match(regex);
+  for (
+    const regex of sharePatterns
+  ) {
+    const match =
+      html.match(regex);
 
-    if (match && match[1]) {
+    if (
+      match &&
+      match[1]
+    ) {
       metadata.statistics.shares =
-        parseNumber(match[1]);
+        parseNumber(
+          match[1]
+        );
 
       break;
     }
   }
 
 
-  /* ----------------------------------------------------------
-   * VIEW
-   * ----------------------------------------------------------
-   */
+  /* VIEWS */
 
   const viewPatterns = [
     /"view_count"\s*:\s*(\d+)/i,
@@ -558,17 +780,24 @@ function extractFacebookMetadata(html) {
     /"view_count"\s*:\s*\{[\s\S]{0,300}?"count"\s*:\s*(\d+)/i
   ];
 
-  for (const regex of viewPatterns) {
-    const match = html.match(regex);
+  for (
+    const regex of viewPatterns
+  ) {
+    const match =
+      html.match(regex);
 
-    if (match && match[1]) {
+    if (
+      match &&
+      match[1]
+    ) {
       metadata.statistics.views =
-        parseNumber(match[1]);
+        parseNumber(
+          match[1]
+        );
 
       break;
     }
   }
-
 
   return metadata;
 }
@@ -579,8 +808,14 @@ function extractFacebookMetadata(html) {
  * ============================================================
  */
 
-async function fetchFacebookHTML(videoUrl) {
-  if (!fs.existsSync(COOKIE_FILE)) {
+async function fetchFacebookHTML(
+  videoUrl
+) {
+  if (
+    !fs.existsSync(
+      COOKIE_FILE
+    )
+  ) {
     console.log(
       '[FACEBOOK] Cookie file not found for HTML metadata'
     );
@@ -591,7 +826,9 @@ async function fetchFacebookHTML(videoUrl) {
   try {
     const args = [
       '-L',
+
       '--silent',
+
       '--show-error',
 
       '--max-time',
@@ -603,10 +840,15 @@ async function fetchFacebookHTML(videoUrl) {
       '-A',
       USER_AGENT,
 
+      /*
+       * CHỈ ĐỌC COOKIE.
+       *
+       * Không dùng:
+       * -c COOKIE_FILE
+       *
+       * vì Vercel không cho ghi vào /var/task.
+       */
       '-b',
-      COOKIE_FILE,
-
-      '-c',
       COOKIE_FILE,
 
       videoUrl
@@ -614,11 +856,13 @@ async function fetchFacebookHTML(videoUrl) {
 
     const result =
       await runCommand(
-        'curl.exe',
+        CURL,
         args
       );
 
-    return result.stdout || '';
+    return (
+      result.stdout || ''
+    );
   } catch (error) {
     console.log(
       `[FACEBOOK] HTML request failed: ${error.message}`
@@ -634,8 +878,12 @@ async function fetchFacebookHTML(videoUrl) {
  * ============================================================
  */
 
-function mergeMetadata(info, htmlMetadata) {
-  info = info || {};
+function mergeMetadata(
+  info,
+  htmlMetadata
+) {
+  info =
+    info || {};
 
   htmlMetadata =
     htmlMetadata || {};
@@ -735,82 +983,152 @@ function mergeMetadata(info, htmlMetadata) {
  * ============================================================
  */
 
-function getBestVideo(formats) {
-  const videos = formats.filter((f) => {
-    return (
-      f &&
-      f.url &&
-      f.vcodec &&
-      f.vcodec !== 'none'
+function getBestVideo(
+  formats
+) {
+  const videos =
+    formats.filter(
+      (f) => {
+        return (
+          f &&
+          f.url &&
+          f.vcodec &&
+          f.vcodec !== 'none'
+        );
+      }
     );
-  });
 
-  videos.sort((a, b) => {
-    const heightA = Number(a.height || 0);
-    const heightB = Number(b.height || 0);
+  videos.sort(
+    (a, b) => {
+      const heightA =
+        Number(
+          a.height || 0
+        );
 
-    if (heightA !== heightB) {
-      return heightB - heightA;
+      const heightB =
+        Number(
+          b.height || 0
+        );
+
+      if (
+        heightA !== heightB
+      ) {
+        return (
+          heightB -
+          heightA
+        );
+      }
+
+      return (
+        Number(
+          b.tbr || 0
+        ) -
+        Number(
+          a.tbr || 0
+        )
+      );
     }
+  );
 
-    return (
-      Number(b.tbr || 0) -
-      Number(a.tbr || 0)
-    );
-  });
-
-  return videos[0] || null;
+  return (
+    videos[0] ||
+    null
+  );
 }
 
 
-function getBestAudio(formats) {
-  const audios = formats.filter((f) => {
-    return (
-      f &&
-      f.url &&
-      f.acodec &&
-      f.acodec !== 'none'
+function getBestAudio(
+  formats
+) {
+  const audios =
+    formats.filter(
+      (f) => {
+        return (
+          f &&
+          f.url &&
+          f.acodec &&
+          f.acodec !== 'none'
+        );
+      }
     );
-  });
 
-  audios.sort((a, b) => {
-    return (
-      Number(b.abr || b.tbr || 0) -
-      Number(a.abr || a.tbr || 0)
-    );
-  });
+  audios.sort(
+    (a, b) => {
+      return (
+        Number(
+          b.abr ||
+          b.tbr ||
+          0
+        ) -
+        Number(
+          a.abr ||
+          a.tbr ||
+          0
+        )
+      );
+    }
+  );
 
-  return audios[0] || null;
+  return (
+    audios[0] ||
+    null
+  );
 }
 
 
-function getProgressiveVideo(formats) {
-  const videos = formats.filter((f) => {
-    return (
-      f &&
-      f.url &&
-      f.vcodec &&
-      f.vcodec !== 'none' &&
-      f.acodec &&
-      f.acodec !== 'none'
+function getProgressiveVideo(
+  formats
+) {
+  const videos =
+    formats.filter(
+      (f) => {
+        return (
+          f &&
+          f.url &&
+          f.vcodec &&
+          f.vcodec !== 'none' &&
+          f.acodec &&
+          f.acodec !== 'none'
+        );
+      }
     );
-  });
 
-  videos.sort((a, b) => {
-    const heightA = Number(a.height || 0);
-    const heightB = Number(b.height || 0);
+  videos.sort(
+    (a, b) => {
+      const heightA =
+        Number(
+          a.height || 0
+        );
 
-    if (heightA !== heightB) {
-      return heightB - heightA;
+      const heightB =
+        Number(
+          b.height || 0
+        );
+
+      if (
+        heightA !== heightB
+      ) {
+        return (
+          heightB -
+          heightA
+        );
+      }
+
+      return (
+        Number(
+          b.tbr || 0
+        ) -
+        Number(
+          a.tbr || 0
+        )
+      );
     }
+  );
 
-    return (
-      Number(b.tbr || 0) -
-      Number(a.tbr || 0)
-    );
-  });
-
-  return videos[0] || null;
+  return (
+    videos[0] ||
+    null
+  );
 }
 
 
@@ -819,7 +1137,9 @@ function getProgressiveVideo(formats) {
  * ============================================================
  */
 
-function collectImages(info) {
+function collectImages(
+  info
+) {
   const result = [];
   const seen = new Set();
 
@@ -832,13 +1152,19 @@ function collectImages(info) {
     }
 
     if (
-      !url.startsWith('http://') &&
-      !url.startsWith('https://')
+      !url.startsWith(
+        'http://'
+      ) &&
+      !url.startsWith(
+        'https://'
+      )
     ) {
       return;
     }
 
-    if (seen.has(url)) {
+    if (
+      seen.has(url)
+    ) {
       return;
     }
 
@@ -846,26 +1172,36 @@ function collectImages(info) {
     result.push(url);
   }
 
+
   function walk(value) {
     if (!value) {
       return;
     }
 
-    if (typeof value === 'string') {
+    if (
+      typeof value === 'string'
+    ) {
       return;
     }
 
-    if (Array.isArray(value)) {
-      for (const item of value) {
+    if (
+      Array.isArray(value)
+    ) {
+      for (
+        const item of value
+      ) {
         walk(item);
       }
 
       return;
     }
 
-    if (typeof value !== 'object') {
+    if (
+      typeof value !== 'object'
+    ) {
       return;
     }
+
 
     if (
       value.url &&
@@ -875,12 +1211,18 @@ function collectImages(info) {
         value.ext === 'jpeg' ||
         value.ext === 'png' ||
         value.ext === 'webp' ||
-        String(value.mime_type || '')
-          .startsWith('image/')
+        String(
+          value.mime_type || ''
+        ).startsWith(
+          'image/'
+        )
       )
     ) {
-      add(value.url);
+      add(
+        value.url
+      );
     }
+
 
     if (
       typeof value.url === 'string' &&
@@ -891,30 +1233,52 @@ function collectImages(info) {
       !value.vcodec &&
       !value.acodec
     ) {
-      add(value.url);
+      add(
+        value.url
+      );
     }
 
-    if (Array.isArray(value.thumbnails)) {
-      for (const thumb of value.thumbnails) {
-        if (thumb && thumb.url) {
-          add(thumb.url);
+
+    if (
+      Array.isArray(
+        value.thumbnails
+      )
+    ) {
+      for (
+        const thumb of value.thumbnails
+      ) {
+        if (
+          thumb &&
+          thumb.url
+        ) {
+          add(
+            thumb.url
+          );
         }
       }
     }
 
-    for (const key of [
-      'images',
-      'photos',
-      'thumbnails',
-      'children',
-      'entries',
-      'playlist'
-    ]) {
-      if (value[key]) {
-        walk(value[key]);
+
+    for (
+      const key of [
+        'images',
+        'photos',
+        'thumbnails',
+        'children',
+        'entries',
+        'playlist'
+      ]
+    ) {
+      if (
+        value[key]
+      ) {
+        walk(
+          value[key]
+        );
       }
     }
   }
+
 
   walk(info);
 
@@ -927,13 +1291,17 @@ function collectImages(info) {
  * ============================================================
  */
 
-async function extractImagesFromFacebookPage(videoUrl) {
+async function extractImagesFromFacebookPage(
+  videoUrl
+) {
   console.log(
     '[FACEBOOK] Trying HTML image extraction...'
   );
 
   const html =
-    await fetchFacebookHTML(videoUrl);
+    await fetchFacebookHTML(
+      videoUrl
+    );
 
   if (!html) {
     return [];
@@ -948,24 +1316,38 @@ async function extractImagesFromFacebookPage(videoUrl) {
     }
 
     let decoded =
-      decodeFacebookValue(url);
+      decodeFacebookValue(
+        url
+      );
 
     if (
-      !decoded.startsWith('http://') &&
-      !decoded.startsWith('https://')
+      !decoded.startsWith(
+        'http://'
+      ) &&
+      !decoded.startsWith(
+        'https://'
+      )
     ) {
       return;
     }
 
     if (
-      !/\.(jpg|jpeg|png|webp)(?:[?#&]|$)/i.test(decoded) &&
-      !decoded.includes('scontent') &&
-      !decoded.includes('fbcdn')
+      !/\.(jpg|jpeg|png|webp)(?:[?#&]|$)/i.test(
+        decoded
+      ) &&
+      !decoded.includes(
+        'scontent'
+      ) &&
+      !decoded.includes(
+        'fbcdn'
+      )
     ) {
       return;
     }
 
-    if (seen.has(decoded)) {
+    if (
+      seen.has(decoded)
+    ) {
       return;
     }
 
@@ -980,9 +1362,12 @@ async function extractImagesFromFacebookPage(videoUrl) {
   let match;
 
   while (
-    (match = ogImageRegex.exec(html)) !== null
+    (match =
+      ogImageRegex.exec(html)) !== null
   ) {
-    addImage(match[1]);
+    addImage(
+      match[1]
+    );
   }
 
 
@@ -990,9 +1375,12 @@ async function extractImagesFromFacebookPage(videoUrl) {
     /<meta[^>]+(?:property|name)=["'](?:og:image:url|twitter:image)["'][^>]+content=["']([^"']+)["'][^>]*>/gi;
 
   while (
-    (match = imageMetaRegex.exec(html)) !== null
+    (match =
+      imageMetaRegex.exec(html)) !== null
   ) {
-    addImage(match[1]);
+    addImage(
+      match[1]
+    );
   }
 
 
@@ -1000,9 +1388,12 @@ async function extractImagesFromFacebookPage(videoUrl) {
     /https?:\\?\/\\?\/[^"'\\\s<>]+(?:scontent|fbcdn)[^"'\\\s<>]*/gi;
 
   while (
-    (match = fbUrlRegex.exec(html)) !== null
+    (match =
+      fbUrlRegex.exec(html)) !== null
   ) {
-    addImage(match[0]);
+    addImage(
+      match[0]
+    );
   }
 
 
@@ -1010,7 +1401,10 @@ async function extractImagesFromFacebookPage(videoUrl) {
     `[FACEBOOK] HTML image candidates: ${images.length}`
   );
 
-  return images.slice(0, 20);
+  return images.slice(
+    0,
+    20
+  );
 }
 
 
@@ -1024,85 +1418,130 @@ function downloadDirect(
   outputPath,
   label
 ) {
-  return new Promise((resolve, reject) => {
-    const args = [
-      '-L',
-      '--fail',
-      '--retry',
-      '3',
-      '--retry-delay',
-      '1',
-      '--connect-timeout',
-      '30',
-      '--max-time',
-      '600',
+  return new Promise(
+    (resolve, reject) => {
+      const args = [
+        '-L',
 
-      '-A',
-      USER_AGENT,
+        '--fail',
 
-      '-b',
-      COOKIE_FILE,
+        '--retry',
+        '3',
 
-      '-o',
-      outputPath,
+        '--retry-delay',
+        '1',
 
-      url
-    ];
+        '--connect-timeout',
+        '30',
 
-    console.log(
-      `[FACEBOOK] Downloading ${label} directly...`
-    );
+        '--max-time',
+        '600',
 
-    execFile(
-      'curl.exe',
-      args,
-      {
-        maxBuffer: 20 * 1024 * 1024,
-        windowsHide: true
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          console.log(
-            `[FACEBOOK] curl ${label} failed`
-          );
+        '-A',
+        USER_AGENT
+      ];
 
-          if (stderr) {
+
+      /*
+       * Cookie chỉ được đọc.
+       */
+      if (
+        fs.existsSync(
+          COOKIE_FILE
+        )
+      ) {
+        args.push(
+          '-b',
+          COOKIE_FILE
+        );
+      }
+
+
+      args.push(
+        '-o',
+        outputPath,
+        url
+      );
+
+
+      console.log(
+        `[FACEBOOK] Downloading ${label} directly...`
+      );
+
+
+      execFile(
+        CURL,
+        args,
+        {
+          maxBuffer:
+            20 * 1024 * 1024,
+
+          windowsHide:
+            true
+        },
+        (
+          error,
+          stdout,
+          stderr
+        ) => {
+          if (error) {
             console.log(
-              `[FACEBOOK CURL ERROR] ${stderr}`
+              `[FACEBOOK] curl ${label} failed`
             );
+
+            if (stderr) {
+              console.log(
+                `[FACEBOOK CURL ERROR] ${stderr}`
+              );
+            }
+
+            reject(error);
+
+            return;
           }
 
-          reject(error);
-          return;
-        }
 
-        if (!fs.existsSync(outputPath)) {
-          reject(
-            new Error(
-              `Downloaded file does not exist: ${outputPath}`
+          if (
+            !fs.existsSync(
+              outputPath
             )
+          ) {
+            reject(
+              new Error(
+                `Downloaded file does not exist: ${outputPath}`
+              )
+            );
+
+            return;
+          }
+
+
+          const stat =
+            fs.statSync(
+              outputPath
+            );
+
+
+          if (
+            stat.size <= 0
+          ) {
+            reject(
+              new Error(
+                `Downloaded file is empty: ${outputPath}`
+              )
+            );
+
+            return;
+          }
+
+
+          resolve(
+            outputPath
           );
-
-          return;
         }
-
-        const stat =
-          fs.statSync(outputPath);
-
-        if (stat.size <= 0) {
-          reject(
-            new Error(
-              `Downloaded file is empty: ${outputPath}`
-            )
-          );
-
-          return;
-        }
-
-        resolve(outputPath);
-      }
-    );
-  });
+      );
+    }
+  );
 }
 
 
@@ -1125,12 +1564,14 @@ async function downloadImageLocally(
       filename
     );
 
+
   try {
     await downloadDirect(
       imageUrl,
       outputPath,
       `image ${index}`
     );
+
 
     return {
       filename,
@@ -1139,7 +1580,9 @@ async function downloadImageLocally(
         outputPath,
 
       url:
-        `/facebook/images/${encodeURIComponent(filename)}`
+        `/facebook/images/${encodeURIComponent(
+          filename
+        )}`
     };
   } catch (error) {
     console.log(
@@ -1161,75 +1604,95 @@ function mergeVideoAudio(
   audioPath,
   outputPath
 ) {
-  return new Promise((resolve, reject) => {
-    const args = [
-      '-y',
+  return new Promise(
+    (resolve, reject) => {
+      const args = [
+        '-y',
 
-      '-i',
-      videoPath,
+        '-i',
+        videoPath,
 
-      '-i',
-      audioPath,
+        '-i',
+        audioPath,
 
-      '-map',
-      '0:v:0',
+        '-map',
+        '0:v:0',
 
-      '-map',
-      '1:a:0',
+        '-map',
+        '1:a:0',
 
-      '-c:v',
-      'copy',
+        '-c:v',
+        'copy',
 
-      '-c:a',
-      'aac',
+        '-c:a',
+        'aac',
 
-      '-movflags',
-      '+faststart',
+        '-movflags',
+        '+faststart',
 
-      outputPath
-    ];
+        outputPath
+      ];
 
-    console.log(
-      '[FACEBOOK] FFmpeg merging video + audio...'
-    );
 
-    execFile(
-      'ffmpeg',
-      args,
-      {
-        maxBuffer: 30 * 1024 * 1024,
-        windowsHide: true
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          console.log(
-            '[FACEBOOK] FFmpeg merge failed'
-          );
+      console.log(
+        '[FACEBOOK] FFmpeg merging video + audio...'
+      );
 
-          if (stderr) {
+
+      execFile(
+        FFMPEG,
+        args,
+        {
+          maxBuffer:
+            30 * 1024 * 1024,
+
+          windowsHide:
+            true
+        },
+        (
+          error,
+          stdout,
+          stderr
+        ) => {
+          if (error) {
             console.log(
-              `[FACEBOOK FFMPEG ERROR] ${stderr}`
+              '[FACEBOOK] FFmpeg merge failed'
             );
+
+            if (stderr) {
+              console.log(
+                `[FACEBOOK FFMPEG ERROR] ${stderr}`
+              );
+            }
+
+            reject(error);
+
+            return;
           }
 
-          reject(error);
-          return;
-        }
 
-        if (!fs.existsSync(outputPath)) {
-          reject(
-            new Error(
-              'FFmpeg output file does not exist'
+          if (
+            !fs.existsSync(
+              outputPath
             )
+          ) {
+            reject(
+              new Error(
+                'FFmpeg output file does not exist'
+              )
+            );
+
+            return;
+          }
+
+
+          resolve(
+            outputPath
           );
-
-          return;
         }
-
-        resolve(outputPath);
-      }
-    );
-  });
+      );
+    }
+  );
 }
 
 
@@ -1238,8 +1701,14 @@ function mergeVideoAudio(
  * ============================================================
  */
 
-function makePublicUrl(filename) {
-  return `/facebook/${encodeURIComponent(filename)}`;
+function makePublicUrl(
+  filename
+) {
+  return (
+    `/facebook/${encodeURIComponent(
+      filename
+    )}`
+  );
 }
 
 
@@ -1267,11 +1736,13 @@ function buildResponse({
     info?.title ??
     null;
 
+
   const finalDescription =
     description ??
     metadata.description ??
     info?.description ??
     null;
+
 
   const author =
     metadata.author || {
@@ -1279,6 +1750,7 @@ function buildResponse({
       id: null,
       avatar: null
     };
+
 
   const statistics =
     metadata.statistics || {
@@ -1288,96 +1760,144 @@ function buildResponse({
       views: null
     };
 
+
   const result = {
-    platform: 'facebook',
+    platform:
+      'facebook',
 
     type,
 
-    title: finalTitle,
+    title:
+      finalTitle,
 
-    description: finalDescription,
+    description:
+      finalDescription,
+
 
     author: {
-      name: author.name || null,
+      name:
+        author.name ||
+        null,
 
-      id: author.id || null,
+      id:
+        author.id ||
+        null,
 
-      uid: author.id || null,
+      uid:
+        author.id ||
+        null,
 
-      avatar: author.avatar || null
+      avatar:
+        author.avatar ||
+        null
     },
+
 
     statistics: {
       likes:
-        statistics.likes ?? null,
+        statistics.likes ??
+        null,
 
       comments:
-        statistics.comments ?? null,
+        statistics.comments ??
+        null,
 
       shares:
-        statistics.shares ?? null,
+        statistics.shares ??
+        null,
 
       views:
-        statistics.views ?? null
+        statistics.views ??
+        null
     },
 
-    /*
-     * Để frontend có thể đọc trực tiếp:
-     */
+
     likes:
-      statistics.likes ?? null,
+      statistics.likes ??
+      null,
 
     comments:
-      statistics.comments ?? null,
+      statistics.comments ??
+      null,
 
     shares:
-      statistics.shares ?? null,
+      statistics.shares ??
+      null,
 
     views:
-      statistics.views ?? null,
+      statistics.views ??
+      null,
+
 
     uid:
-      author.id || null,
+      author.id ||
+      null,
 
     username:
-      author.name || null,
+      author.name ||
+      null,
 
     avatar:
-      author.avatar || null,
+      author.avatar ||
+      null,
+
 
     duration:
-      info?.duration || null,
+      info?.duration ||
+      null,
+
 
     images:
-      images || [],
+      images ||
+      [],
+
 
     hasAudio:
       Boolean(hasAudio)
   };
 
 
-  if (localPath) {
-    result.localPath = localPath;
-    result.localFile = localFile || localPath;
-    result.filename = filename;
+  if (
+    localPath
+  ) {
+    result.localPath =
+      localPath;
+
+    result.localFile =
+      localFile ||
+      localPath;
+
+    result.filename =
+      filename;
+
 
     result.video = {
       noWatermark:
-        makePublicUrl(filename),
+        makePublicUrl(
+          filename
+        ),
 
       watermark:
-        makePublicUrl(filename),
+        makePublicUrl(
+          filename
+        ),
 
       url:
-        makePublicUrl(filename)
+        makePublicUrl(
+          filename
+        )
     };
+
 
     result.audio = {
       url:
         audioUrl ||
-        makePublicUrl(filename)
+        makePublicUrl(
+          filename
+        )
     };
   }
+
 
   return result;
 }
@@ -1388,10 +1908,19 @@ function buildResponse({
  * ============================================================
  */
 
-async function handleFacebook(videoUrl) {
+async function handleFacebook(
+  videoUrl
+) {
   console.log(
     `[FACEBOOK] Processing: ${videoUrl}`
   );
+
+
+  /*
+   * Đảm bảo /tmp/facebook tồn tại
+   * mỗi lần function được gọi.
+   */
+  ensureDirectories();
 
 
   /* ==========================================================
@@ -1399,7 +1928,11 @@ async function handleFacebook(videoUrl) {
    * ==========================================================
    */
 
-  if (!fs.existsSync(COOKIE_FILE)) {
+  if (
+    !fs.existsSync(
+      COOKIE_FILE
+    )
+  ) {
     console.log(
       `[FACEBOOK] Cookie file not found: ${COOKIE_FILE}`
     );
@@ -1416,6 +1949,7 @@ async function handleFacebook(videoUrl) {
    */
 
   let info = null;
+
 
   try {
     const args = [
@@ -1436,8 +1970,12 @@ async function handleFacebook(videoUrl) {
       videoUrl
     ];
 
+
     const result =
-      await runYtDlp(args);
+      await runYtDlp(
+        args
+      );
+
 
     if (
       result.stdout &&
@@ -1460,7 +1998,9 @@ async function handleFacebook(videoUrl) {
       '[FACEBOOK] yt-dlp information extraction failed'
     );
 
-    if (error.stderr) {
+    if (
+      error.stderr
+    ) {
       console.log(
         `[FACEBOOK] yt-dlp error: ${error.stderr}`
       );
@@ -1470,16 +2010,13 @@ async function handleFacebook(videoUrl) {
 
   /* ==========================================================
    * FACEBOOK HTML METADATA
-   *
-   * LUÔN chạy, không chỉ khi yt-dlp fail.
-   * Đây là phần quan trọng để lấy:
-   * name/avatar/uid/views/likes/comments/shares
    * ==========================================================
    */
 
   console.log(
     '[FACEBOOK] Extracting Facebook HTML metadata...'
   );
+
 
   let htmlMetadata = {
     title: null,
@@ -1500,23 +2037,34 @@ async function handleFacebook(videoUrl) {
     }
   };
 
+
   try {
     const html =
-      await fetchFacebookHTML(videoUrl);
+      await fetchFacebookHTML(
+        videoUrl
+      );
+
 
     if (html) {
       htmlMetadata =
-        extractFacebookMetadata(html);
+        extractFacebookMetadata(
+          html
+        );
+
 
       console.log(
-        `[FACEBOOK] HTML Author: ${htmlMetadata.author.name || 'Unknown'
+        `[FACEBOOK] HTML Author: ${htmlMetadata.author.name ||
+        'Unknown'
         }`
       );
 
+
       console.log(
-        `[FACEBOOK] HTML UID: ${htmlMetadata.author.id || 'Unknown'
+        `[FACEBOOK] HTML UID: ${htmlMetadata.author.id ||
+        'Unknown'
         }`
       );
+
 
       console.log(
         `[FACEBOOK] HTML Avatar: ${htmlMetadata.author.avatar
@@ -1525,23 +2073,31 @@ async function handleFacebook(videoUrl) {
         }`
       );
 
+
       console.log(
-        `[FACEBOOK] HTML Likes: ${htmlMetadata.statistics.likes ?? 'Unknown'
+        `[FACEBOOK] HTML Likes: ${htmlMetadata.statistics.likes ??
+        'Unknown'
         }`
       );
 
+
       console.log(
-        `[FACEBOOK] HTML Comments: ${htmlMetadata.statistics.comments ?? 'Unknown'
+        `[FACEBOOK] HTML Comments: ${htmlMetadata.statistics.comments ??
+        'Unknown'
         }`
       );
 
+
       console.log(
-        `[FACEBOOK] HTML Shares: ${htmlMetadata.statistics.shares ?? 'Unknown'
+        `[FACEBOOK] HTML Shares: ${htmlMetadata.statistics.shares ??
+        'Unknown'
         }`
       );
 
+
       console.log(
-        `[FACEBOOK] HTML Views: ${htmlMetadata.statistics.views ?? 'Unknown'
+        `[FACEBOOK] HTML Views: ${htmlMetadata.statistics.views ??
+        'Unknown'
         }`
       );
     }
@@ -1565,14 +2121,18 @@ async function handleFacebook(videoUrl) {
 
 
   console.log(
-    `[FACEBOOK] FINAL NAME: ${metadata.author.name || 'Unknown'
+    `[FACEBOOK] FINAL NAME: ${metadata.author.name ||
+    'Unknown'
     }`
   );
 
+
   console.log(
-    `[FACEBOOK] FINAL UID: ${metadata.author.id || 'Unknown'
+    `[FACEBOOK] FINAL UID: ${metadata.author.id ||
+    'Unknown'
     }`
   );
+
 
   console.log(
     `[FACEBOOK] FINAL AVATAR: ${metadata.author.avatar
@@ -1581,23 +2141,31 @@ async function handleFacebook(videoUrl) {
     }`
   );
 
+
   console.log(
-    `[FACEBOOK] FINAL LIKES: ${metadata.statistics.likes ?? 'Unknown'
+    `[FACEBOOK] FINAL LIKES: ${metadata.statistics.likes ??
+    'Unknown'
     }`
   );
 
+
   console.log(
-    `[FACEBOOK] FINAL COMMENTS: ${metadata.statistics.comments ?? 'Unknown'
+    `[FACEBOOK] FINAL COMMENTS: ${metadata.statistics.comments ??
+    'Unknown'
     }`
   );
 
+
   console.log(
-    `[FACEBOOK] FINAL SHARES: ${metadata.statistics.shares ?? 'Unknown'
+    `[FACEBOOK] FINAL SHARES: ${metadata.statistics.shares ??
+    'Unknown'
     }`
   );
 
+
   console.log(
-    `[FACEBOOK] FINAL VIEWS: ${metadata.statistics.views ?? 'Unknown'
+    `[FACEBOOK] FINAL VIEWS: ${metadata.statistics.views ??
+    'Unknown'
     }`
   );
 
@@ -1612,10 +2180,12 @@ async function handleFacebook(videoUrl) {
       '[FACEBOOK] No yt-dlp information'
     );
 
+
     const fallbackImages =
       await extractImagesFromFacebookPage(
         videoUrl
       );
+
 
     if (
       fallbackImages.length > 0
@@ -1625,7 +2195,9 @@ async function handleFacebook(videoUrl) {
           .randomBytes(8)
           .toString('hex')}`;
 
+
       const downloadedImages = [];
+
 
       for (
         let i = 0;
@@ -1639,12 +2211,14 @@ async function handleFacebook(videoUrl) {
             baseName
           );
 
+
         if (downloaded) {
           downloadedImages.push(
             downloaded
           );
         }
       }
+
 
       if (
         downloadedImages.length > 0
@@ -1654,7 +2228,8 @@ async function handleFacebook(videoUrl) {
 
           metadata,
 
-          type: 'image',
+          type:
+            'image',
 
           title:
             metadata.title,
@@ -1664,17 +2239,21 @@ async function handleFacebook(videoUrl) {
 
           images:
             downloadedImages.map(
-              item => item.url
+              item =>
+                item.url
             ),
 
-          hasAudio: false
+          hasAudio:
+            false
         });
       }
     }
 
+
     console.log(
       '[FACEBOOK] Failed to extract information'
     );
+
 
     return null;
   }
@@ -1686,29 +2265,40 @@ async function handleFacebook(videoUrl) {
    */
 
   const formats =
-    Array.isArray(info.formats)
+    Array.isArray(
+      info.formats
+    )
       ? info.formats
       : [];
 
+
   console.log(
-    `[FACEBOOK] Title: ${info.title || 'Unknown'
+    `[FACEBOOK] Title: ${info.title ||
+    'Unknown'
     }`
   );
 
+
   console.log(
-    `[FACEBOOK] ID: ${info.id || 'Unknown'
+    `[FACEBOOK] ID: ${info.id ||
+    'Unknown'
     }`
   );
 
+
   console.log(
-    `[FACEBOOK] Uploader: ${info.uploader || 'Unknown'
+    `[FACEBOOK] Uploader: ${info.uploader ||
+    'Unknown'
     }`
   );
 
+
   console.log(
-    `[FACEBOOK] Duration: ${info.duration || 0
+    `[FACEBOOK] Duration: ${info.duration ||
+    0
     }s`
   );
+
 
   console.log(
     `[FACEBOOK] Formats: ${formats.length
@@ -1722,7 +2312,10 @@ async function handleFacebook(videoUrl) {
    */
 
   let images =
-    collectImages(info);
+    collectImages(
+      info
+    );
+
 
   if (
     images.length > 0
@@ -1739,22 +2332,30 @@ async function handleFacebook(videoUrl) {
    */
 
   const progressive =
-    getProgressiveVideo(formats);
+    getProgressiveVideo(
+      formats
+    );
+
 
   if (progressive) {
     console.log(
       `[FACEBOOK] Progressive video: ${progressive.format_id}`
     );
 
+
     const filename =
-      `facebook_${info.id || crypto.randomBytes(4).toString('hex')}_` +
-      `${crypto.randomBytes(8).toString('hex')}.mp4`;
+      `facebook_${info.id ||
+      crypto.randomBytes(4).toString('hex')
+      }_${crypto.randomBytes(8).toString('hex')
+      }.mp4`;
+
 
     const outputPath =
       path.join(
         DOWNLOAD_DIR,
         filename
       );
+
 
     try {
       await downloadDirect(
@@ -1763,16 +2364,19 @@ async function handleFacebook(videoUrl) {
         'progressive video'
       );
 
+
       console.log(
         `[FACEBOOK] Download success: ${filename}`
       );
+
 
       return buildResponse({
         info,
 
         metadata,
 
-        type: 'video',
+        type:
+          'video',
 
         title:
           metadata.title,
@@ -1788,7 +2392,8 @@ async function handleFacebook(videoUrl) {
 
         filename,
 
-        hasAudio: true,
+        hasAudio:
+          true,
 
         images
       });
@@ -1806,10 +2411,16 @@ async function handleFacebook(videoUrl) {
    */
 
   const videoFormat =
-    getBestVideo(formats);
+    getBestVideo(
+      formats
+    );
+
 
   const audioFormat =
-    getBestAudio(formats);
+    getBestAudio(
+      formats
+    );
+
 
   if (
     videoFormat &&
@@ -1819,13 +2430,18 @@ async function handleFacebook(videoUrl) {
       '[FACEBOOK] Video and audio are separate'
     );
 
+
     const random =
       crypto
         .randomBytes(8)
         .toString('hex');
 
+
     const baseName =
-      `facebook_${info.id || 'video'}_${random}`;
+      `facebook_${info.id ||
+      'video'
+      }_${random}`;
+
 
     const videoExt =
       getExtension(
@@ -1833,11 +2449,13 @@ async function handleFacebook(videoUrl) {
         'mp4'
       );
 
+
     const audioExt =
       getExtension(
         audioFormat,
         'm4a'
       );
+
 
     const videoPath =
       path.join(
@@ -1845,20 +2463,24 @@ async function handleFacebook(videoUrl) {
         `${baseName}_video.${videoExt}`
       );
 
+
     const audioPath =
       path.join(
         DOWNLOAD_DIR,
         `${baseName}_audio.${audioExt}`
       );
 
+
     const outputFilename =
       `${baseName}.mp4`;
+
 
     const outputPath =
       path.join(
         DOWNLOAD_DIR,
         outputFilename
       );
+
 
     try {
       await downloadDirect(
@@ -1867,15 +2489,18 @@ async function handleFacebook(videoUrl) {
         'video'
       );
 
+
       await downloadDirect(
         audioFormat.url,
         audioPath,
         'audio'
       );
 
+
       console.log(
         '[FACEBOOK] Both streams downloaded'
       );
+
 
       await mergeVideoAudio(
         videoPath,
@@ -1885,33 +2510,51 @@ async function handleFacebook(videoUrl) {
 
 
       try {
-        if (fs.existsSync(videoPath)) {
-          fs.unlinkSync(videoPath);
+        if (
+          fs.existsSync(
+            videoPath
+          )
+        ) {
+          fs.unlinkSync(
+            videoPath
+          );
         }
 
-        if (fs.existsSync(audioPath)) {
-          fs.unlinkSync(audioPath);
+
+        if (
+          fs.existsSync(
+            audioPath
+          )
+        ) {
+          fs.unlinkSync(
+            audioPath
+          );
         }
       } catch (_) { }
 
 
       const sizeMB =
         (
-          fs.statSync(outputPath).size /
+          fs.statSync(
+            outputPath
+          ).size /
           1024 /
           1024
         ).toFixed(2);
 
+
       console.log(
         `[FACEBOOK] Download success: ${outputFilename} (${sizeMB} MB)`
       );
+
 
       return buildResponse({
         info,
 
         metadata,
 
-        type: 'video',
+        type:
+          'video',
 
         title:
           metadata.title,
@@ -1928,7 +2571,8 @@ async function handleFacebook(videoUrl) {
         filename:
           outputFilename,
 
-        hasAudio: true,
+        hasAudio:
+          true,
 
         images
       });
@@ -1936,6 +2580,7 @@ async function handleFacebook(videoUrl) {
       console.log(
         `[FACEBOOK] Direct stream download/merge failed: ${error.message}`
       );
+
 
       for (
         const file of [
@@ -1945,7 +2590,9 @@ async function handleFacebook(videoUrl) {
         ]
       ) {
         try {
-          if (fs.existsSync(file)) {
+          if (
+            fs.existsSync(file)
+          ) {
             fs.unlinkSync(file);
           }
         } catch (_) { }
@@ -1964,15 +2611,20 @@ async function handleFacebook(videoUrl) {
       '[FACEBOOK] Only video stream available'
     );
 
+
     const filename =
-      `facebook_${info.id || 'video'}_` +
-      `${crypto.randomBytes(8).toString('hex')}.mp4`;
+      `facebook_${info.id ||
+      'video'
+      }_${crypto.randomBytes(8).toString('hex')
+      }.mp4`;
+
 
     const outputPath =
       path.join(
         DOWNLOAD_DIR,
         filename
       );
+
 
     try {
       await downloadDirect(
@@ -1981,16 +2633,19 @@ async function handleFacebook(videoUrl) {
         'video'
       );
 
+
       console.log(
         `[FACEBOOK] Video download success: ${filename}`
       );
+
 
       return buildResponse({
         info,
 
         metadata,
 
-        type: 'video',
+        type:
+          'video',
 
         title:
           metadata.title,
@@ -2006,7 +2661,8 @@ async function handleFacebook(videoUrl) {
 
         filename,
 
-        hasAudio: false,
+        hasAudio:
+          false,
 
         images
       });
@@ -2030,6 +2686,7 @@ async function handleFacebook(videoUrl) {
       '[FACEBOOK] No images from yt-dlp, trying HTML...'
     );
 
+
     images =
       await extractImagesFromFacebookPage(
         videoUrl
@@ -2044,13 +2701,18 @@ async function handleFacebook(videoUrl) {
       `[FACEBOOK] Found ${images.length} image(s)`
     );
 
+
     const baseName =
-      `facebook_${info.id || 'image'}_` +
-      crypto
+      `facebook_${info.id ||
+      'image'
+      }_${crypto
         .randomBytes(8)
-        .toString('hex');
+        .toString('hex')
+      }`;
+
 
     const downloadedImages = [];
+
 
     for (
       let i = 0;
@@ -2063,6 +2725,7 @@ async function handleFacebook(videoUrl) {
           i + 1,
           baseName
         );
+
 
       if (downloaded) {
         downloadedImages.push(
@@ -2080,7 +2743,8 @@ async function handleFacebook(videoUrl) {
 
         metadata,
 
-        type: 'image',
+        type:
+          'image',
 
         title:
           metadata.title ||
@@ -2091,10 +2755,12 @@ async function handleFacebook(videoUrl) {
 
         images:
           downloadedImages.map(
-            item => item.url
+            item =>
+              item.url
           ),
 
-        hasAudio: false
+        hasAudio:
+          false
       });
     }
 
@@ -2104,7 +2770,8 @@ async function handleFacebook(videoUrl) {
 
       metadata,
 
-      type: 'image',
+      type:
+        'image',
 
       title:
         metadata.title ||
@@ -2115,7 +2782,8 @@ async function handleFacebook(videoUrl) {
 
       images,
 
-      hasAudio: false
+      hasAudio:
+        false
     });
   }
 
@@ -2129,8 +2797,15 @@ async function handleFacebook(videoUrl) {
     '[FACEBOOK] No downloadable media found'
   );
 
+
   return null;
 }
 
 
-module.exports = handleFacebook;
+/* ============================================================
+ * EXPORT
+ * ============================================================
+ */
+
+module.exports =
+  handleFacebook;
