@@ -3,262 +3,460 @@ const path = require('path');
 const crypto = require('crypto');
 const ytDlp = require('youtube-dl-exec');
 
-const DOWNLOAD_DIR = path.join(__dirname, '..', 'downloads');
+// ======================================================
+// VERCEL / LOCAL TEMP STORAGE
+// ======================================================
 
-// Tạo thư mục downloads nếu chưa có
+const DOWNLOAD_DIR = path.join(
+  require('os').tmpdir(),
+  'downloads'
+);
+
 if (!fs.existsSync(DOWNLOAD_DIR)) {
-  fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+  fs.mkdirSync(
+    DOWNLOAD_DIR,
+    {
+      recursive: true
+    }
+  );
 }
 
-/**
- * Lấy YouTube video ID
- */
+// ======================================================
+// YOUTUBE HEADERS
+// ======================================================
+
+const YOUTUBE_HEADERS = [
+  'referer:https://www.youtube.com/',
+  'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+];
+
+// ======================================================
+// VIDEO ID
+// ======================================================
+
 function extractVideoId(url) {
   try {
-    const parsed = new URL(url);
+    const parsed =
+      new URL(url);
 
-    // youtube.com/watch?v=xxxx
+    const hostname =
+      parsed.hostname
+        .toLowerCase();
+
+    // youtube.com/watch?v=
     if (
-      parsed.hostname === 'www.youtube.com' ||
-      parsed.hostname === 'youtube.com' ||
-      parsed.hostname === 'm.youtube.com'
+      hostname === 'youtube.com' ||
+      hostname === 'www.youtube.com' ||
+      hostname === 'm.youtube.com'
     ) {
-      return parsed.searchParams.get('v');
+      const v =
+        parsed.searchParams.get('v');
+
+      if (v) {
+        return v;
+      }
+
+      // /shorts/ID
+      if (
+        parsed.pathname.startsWith(
+          '/shorts/'
+        )
+      ) {
+        return parsed.pathname
+          .split('/')[2]
+          ?.split('?')[0];
+      }
+
+      // /embed/ID
+      if (
+        parsed.pathname.startsWith(
+          '/embed/'
+        )
+      ) {
+        return parsed.pathname
+          .split('/')[2]
+          ?.split('?')[0];
+      }
+
+      return null;
     }
 
-    // youtu.be/xxxx
+    // youtu.be/ID
     if (
-      parsed.hostname === 'youtu.be' ||
-      parsed.hostname === 'www.youtu.be'
+      hostname === 'youtu.be' ||
+      hostname === 'www.youtu.be'
     ) {
-      return parsed.pathname.split('/')[1];
+      return parsed.pathname
+        .split('/')[1]
+        ?.split('?')[0];
     }
 
     return null;
+
   } catch {
     return null;
   }
 }
 
-/**
- * Tạo URL file
- */
+// ======================================================
+// BASE URL
+// ======================================================
+
 function getPublicBaseUrl() {
-  return (
-    process.env.PUBLIC_URL ||
-    `http://localhost:${process.env.PORT || 3000}`
-  );
+  if (
+    process.env.PUBLIC_URL
+  ) {
+    return process.env.PUBLIC_URL
+      .replace(/\/+$/, '');
+  }
+
+  if (
+    process.env.VERCEL_URL
+  ) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+
+  return `http://localhost:${process.env.PORT || 3000
+    }`;
 }
 
-/**
- * Download YouTube video (MP4)
- */
-async function handleYouTube(videoUrl) {
-  console.log(`[YOUTUBE] Processing: ${videoUrl}`);
+// ======================================================
+// CLEANUP
+// ======================================================
 
-  if (!videoUrl || typeof videoUrl !== 'string') {
-    throw new Error('YouTube URL không hợp lệ');
+function removeFile(filePath) {
+  try {
+    if (
+      fs.existsSync(filePath)
+    ) {
+      fs.unlinkSync(filePath);
+    }
+  } catch { }
+}
+
+// ======================================================
+// YOUTUBE VIDEO
+// ======================================================
+
+async function handleYouTube(videoUrl) {
+  console.log(
+    `[YOUTUBE] Processing: ${videoUrl}`
+  );
+
+  if (
+    !videoUrl ||
+    typeof videoUrl !== 'string'
+  ) {
+    throw new Error(
+      'YouTube URL không hợp lệ'
+    );
   }
 
-  const videoId = extractVideoId(videoUrl);
+  const videoId =
+    extractVideoId(
+      videoUrl
+    );
 
   if (!videoId) {
-    throw new Error('Không lấy được YouTube Video ID');
+    throw new Error(
+      'Không lấy được YouTube Video ID'
+    );
   }
 
-  console.log(`[YOUTUBE] Video ID: ${videoId}`);
+  console.log(
+    `[YOUTUBE] Video ID: ${videoId}`
+  );
 
   const fileName =
     `youtube_${videoId}_${crypto.randomBytes(5).toString('hex')}.mp4`;
 
-  const outputPath = path.join(DOWNLOAD_DIR, fileName);
+  const outputPath =
+    path.join(
+      DOWNLOAD_DIR,
+      fileName
+    );
 
   try {
-    console.log('[YOUTUBE] Getting video information...');
+    // ==================================================
+    // INFO
+    // ==================================================
 
-    /*
-     * Lấy thông tin video trước
-     */
-    const info = await ytDlp(videoUrl, {
-      dumpSingleJson: true,
-      noWarnings: true,
-      skipDownload: true,
-      noPlaylist: true,
-      preferFreeFormats: true,
-      addHeader: [
-        'referer:https://www.youtube.com/',
-        'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
-      ]
-    });
+    console.log(
+      '[YOUTUBE] Getting video information...'
+    );
+
+    const info =
+      await ytDlp(
+        videoUrl,
+        {
+          dumpSingleJson: true,
+
+          noWarnings: true,
+
+          skipDownload: true,
+
+          noPlaylist: true,
+
+          preferFreeFormats: true,
+
+          addHeader:
+            YOUTUBE_HEADERS,
+
+          socketTimeout: 30,
+
+          retries: 3,
+
+          extractorRetries: 3
+        }
+      );
 
     const title =
       info.title ||
       info.fulltitle ||
       'YouTube Video';
 
-    console.log(`[YOUTUBE] Title: ${title}`);
+    console.log(
+      `[YOUTUBE] Title: ${title}`
+    );
 
-    console.log('[YOUTUBE] Downloading...');
+    // ==================================================
+    // DOWNLOAD
+    // ==================================================
 
-    await ytDlp(videoUrl, {
-      output: outputPath,
+    console.log(
+      `[YOUTUBE] Output: ${outputPath}`
+    );
 
-      format: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[ext=mp4]/best',
+    console.log(
+      '[YOUTUBE] Downloading...'
+    );
 
-      mergeOutputFormat: 'mp4',
+    await ytDlp(
+      videoUrl,
+      {
+        output:
+          outputPath,
 
-      noPlaylist: true,
+        format:
+          'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[ext=mp4]/best',
 
-      noWarnings: true,
+        mergeOutputFormat:
+          'mp4',
 
-      restrictFilenames: true,
+        noPlaylist:
+          true,
 
-      concurrentFragments: 4,
+        noWarnings:
+          true,
 
-      retries: 3,
+        restrictFilenames:
+          true,
 
-      fragmentRetries: 3,
+        concurrentFragments:
+          4,
 
-      extractorRetries: 3,
+        retries:
+          3,
 
-      socketTimeout: 30,
+        fragmentRetries:
+          3,
 
-      addHeader: [
-        'referer:https://www.youtube.com/',
-        'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
-      ]
-    });
+        extractorRetries:
+          3,
 
-    /*
-     * Kiểm tra file
-     */
-    if (!fs.existsSync(outputPath)) {
+        socketTimeout:
+          30,
+
+        addHeader:
+          YOUTUBE_HEADERS
+      }
+    );
+
+    // ==================================================
+    // CHECK FILE
+    // ==================================================
+
+    if (
+      !fs.existsSync(
+        outputPath
+      )
+    ) {
       throw new Error(
         'yt-dlp chạy xong nhưng không tìm thấy file MP4'
       );
     }
 
-    const stats = fs.statSync(outputPath);
+    const stats =
+      fs.statSync(
+        outputPath
+      );
 
-    if (stats.size <= 0) {
-      fs.unlinkSync(outputPath);
-      throw new Error('File MP4 được tạo nhưng dung lượng = 0');
+    if (
+      !stats.isFile() ||
+      stats.size <= 0
+    ) {
+      removeFile(
+        outputPath
+      );
+
+      throw new Error(
+        'File MP4 được tạo nhưng dung lượng không hợp lệ'
+      );
     }
 
     console.log(
       `[YOUTUBE] Download success: ${fileName} (${Math.round(stats.size / 1024 / 1024)} MB)`
     );
 
-    const baseUrl = getPublicBaseUrl();
+    // ==================================================
+    // PUBLIC URL
+    // ==================================================
+
+    const baseUrl =
+      getPublicBaseUrl();
 
     const mediaUrl =
       `${baseUrl}/downloads/${encodeURIComponent(fileName)}`;
 
-    /*
-     * Cover
-     */
+    // ==================================================
+    // METADATA
+    // ==================================================
+
     const cover =
       info.thumbnail ||
       `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
-    /*
-     * Author
-     */
     const authorName =
       info.uploader ||
       info.channel ||
       info.creator ||
       'YouTube';
 
-    /*
-     * Views
-     */
+    const channelId =
+      info.channel_id ||
+      info.uploader_id ||
+      'youtube';
+
     const views =
-      Number(info.view_count) ||
-      0;
+      Number(
+        info.view_count
+      ) || 0;
 
-    /*
-     * Likes
-     */
     const likes =
-      Number(info.like_count) ||
-      0;
+      Number(
+        info.like_count
+      ) || 0;
 
-    /*
-     * Return format tương thích API TikTok hiện tại
-     */
+    const comments =
+      Number(
+        info.comment_count
+      ) || 0;
+
+    const duration =
+      Number(
+        info.duration
+      ) || 0;
+
+    // ==================================================
+    // RESPONSE
+    // ==================================================
+
     return {
       type: 'video',
 
       desc: title,
 
       author: {
-        nickname: authorName,
+        nickname:
+          authorName,
+
         unique_id:
-          info.channel_id ||
-          info.uploader_id ||
-          'youtube',
+          channelId,
 
         avatar:
           info.channel_favicon ||
+          info.avatar ||
           'https://www.youtube.com/s/desktop/f17ecf45/img/favicon_144x144.png'
       },
 
       video: {
-        noWatermark: mediaUrl,
-        watermark: mediaUrl,
-        cover: cover
+        noWatermark:
+          mediaUrl,
+
+        watermark:
+          mediaUrl,
+
+        cover:
+          cover
       },
 
       images: null,
 
-      // music.playUrl is the VIDEO url; audio download is handled separately via /api/youtube-audio
       music: {
         playUrl: null,
-        title: title,
-        // Store original video URL so we can extract audio server-side
-        sourceVideoUrl: videoUrl
+
+        title:
+          title,
+
+        sourceVideoUrl:
+          videoUrl
       },
 
       statistics: {
-        playCount: views,
-        likeCount: likes,
-        commentCount: 0,
-        shareCount: 0
+        playCount:
+          views,
+
+        likeCount:
+          likes,
+
+        commentCount:
+          comments,
+
+        shareCount:
+          0
       },
 
-      /*
-       * Thông tin bổ sung
-       */
       youtube: {
-        videoId: videoId,
-        title: title,
-        duration: Number(info.duration) || 0,
-        uploader: authorName,
-        webpageUrl: videoUrl
+        videoId:
+          videoId,
+
+        title:
+          title,
+
+        duration:
+          duration,
+
+        uploader:
+          authorName,
+
+        channelId:
+          channelId,
+
+        webpageUrl:
+          videoUrl
       },
 
-      /*
-       * Thông tin file
-       */
       file: {
-        name: fileName,
-        size: stats.size,
-        url: mediaUrl
+        name:
+          fileName,
+
+        size:
+          stats.size,
+
+        url:
+          mediaUrl
       }
     };
 
   } catch (error) {
-    console.error('[YOUTUBE ERROR]', error);
+    console.error(
+      '[YOUTUBE ERROR]',
+      error
+    );
 
-    /*
-     * Xóa file lỗi nếu có
-     */
-    if (fs.existsSync(outputPath)) {
-      try {
-        fs.unlinkSync(outputPath);
-      } catch { }
-    }
+    removeFile(
+      outputPath
+    );
 
     let message =
       error?.stderr ||
@@ -266,11 +464,23 @@ async function handleYouTube(videoUrl) {
       error?.message ||
       String(error);
 
-    if (typeof message !== 'string') {
-      message = JSON.stringify(message);
+    if (
+      typeof message !== 'string'
+    ) {
+      try {
+        message =
+          JSON.stringify(
+            message
+          );
+      } catch {
+        message =
+          String(message);
+      }
     }
 
-    console.error(message);
+    console.error(
+      message
+    );
 
     throw new Error(
       `Không thể tải YouTube: ${message.substring(0, 1000)}`
@@ -278,78 +488,171 @@ async function handleYouTube(videoUrl) {
   }
 }
 
-/**
- * Download YouTube audio only (MP3)
- */
-async function handleYouTubeAudio(videoUrl) {
-  console.log(`[YOUTUBE AUDIO] Processing: ${videoUrl}`);
+// ======================================================
+// YOUTUBE AUDIO MP3
+// ======================================================
 
-  if (!videoUrl || typeof videoUrl !== 'string') {
-    throw new Error('YouTube URL không hợp lệ');
+async function handleYouTubeAudio(
+  videoUrl
+) {
+  console.log(
+    `[YOUTUBE AUDIO] Processing: ${videoUrl}`
+  );
+
+  if (
+    !videoUrl ||
+    typeof videoUrl !== 'string'
+  ) {
+    throw new Error(
+      'YouTube URL không hợp lệ'
+    );
   }
 
-  const videoId = extractVideoId(videoUrl);
+  const videoId =
+    extractVideoId(
+      videoUrl
+    );
+
   if (!videoId) {
-    throw new Error('Không lấy được YouTube Video ID');
+    throw new Error(
+      'Không lấy được YouTube Video ID'
+    );
   }
 
-  const fileName =
-    `youtube_audio_${videoId}_${crypto.randomBytes(5).toString('hex')}.mp3`;
+  const baseName =
+    `youtube_audio_${videoId}_${crypto.randomBytes(5).toString('hex')}`;
 
-  const outputPath = path.join(DOWNLOAD_DIR, fileName);
+  const outputPath =
+    path.join(
+      DOWNLOAD_DIR,
+      `${baseName}.mp3`
+    );
 
   try {
-    console.log('[YOUTUBE AUDIO] Downloading audio only...');
+    console.log(
+      `[YOUTUBE AUDIO] Output: ${outputPath}`
+    );
 
-    await ytDlp(videoUrl, {
-      output: outputPath,
-      format: 'bestaudio[ext=m4a]/bestaudio/best',
-      extractAudio: true,
-      audioFormat: 'mp3',
-      audioQuality: 0, // best quality
-      noPlaylist: true,
-      noWarnings: true,
-      retries: 3,
-      addHeader: [
-        'referer:https://www.youtube.com/',
-        'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
-      ]
-    });
+    await ytDlp(
+      videoUrl,
+      {
+        output:
+          outputPath,
 
-    // yt-dlp may rename output when converting (adds .mp3 extension)
-    let finalPath = outputPath;
-    if (!fs.existsSync(finalPath)) {
-      // Try without extension conflict
-      const altPath = outputPath.replace('.mp3', '') + '.mp3';
-      if (fs.existsSync(altPath)) {
-        finalPath = altPath;
+        format:
+          'bestaudio[ext=m4a]/bestaudio/best',
+
+        extractAudio:
+          true,
+
+        audioFormat:
+          'mp3',
+
+        audioQuality:
+          0,
+
+        noPlaylist:
+          true,
+
+        noWarnings:
+          true,
+
+        retries:
+          3,
+
+        fragmentRetries:
+          3,
+
+        extractorRetries:
+          3,
+
+        socketTimeout:
+          30,
+
+        addHeader:
+          YOUTUBE_HEADERS
+      }
+    );
+
+    // ==================================================
+    // FIND OUTPUT
+    // ==================================================
+
+    let finalPath =
+      outputPath;
+
+    if (
+      !fs.existsSync(
+        finalPath
+      )
+    ) {
+      const altPath =
+        path.join(
+          DOWNLOAD_DIR,
+          `${baseName}.mp3`
+        );
+
+      if (
+        fs.existsSync(
+          altPath
+        )
+      ) {
+        finalPath =
+          altPath;
       } else {
-        throw new Error('yt-dlp chạy xong nhưng không tìm thấy file MP3');
+        throw new Error(
+          'yt-dlp chạy xong nhưng không tìm thấy file MP3'
+        );
       }
     }
 
-    const stats = fs.statSync(finalPath);
-    if (stats.size <= 0) {
-      fs.unlinkSync(finalPath);
-      throw new Error('File MP3 được tạo nhưng dung lượng = 0');
+    const stats =
+      fs.statSync(
+        finalPath
+      );
+
+    if (
+      !stats.isFile() ||
+      stats.size <= 0
+    ) {
+      removeFile(
+        finalPath
+      );
+
+      throw new Error(
+        'File MP3 được tạo nhưng dung lượng không hợp lệ'
+      );
     }
 
-    const finalFileName = path.basename(finalPath);
-    const baseUrl = getPublicBaseUrl();
-    const audioUrl = `${baseUrl}/downloads/${encodeURIComponent(finalFileName)}`;
+    const finalFileName =
+      path.basename(
+        finalPath
+      );
 
     console.log(
       `[YOUTUBE AUDIO] Done: ${finalFileName} (${Math.round(stats.size / 1024)} KB)`
     );
 
-    return { audioUrl, fileName: finalFileName, size: stats.size };
+    return {
+      audioUrl:
+        `${getPublicBaseUrl()}/downloads/${encodeURIComponent(finalFileName)}`,
+
+      fileName:
+        finalFileName,
+
+      size:
+        stats.size
+    };
 
   } catch (error) {
-    console.error('[YOUTUBE AUDIO ERROR]', error);
+    console.error(
+      '[YOUTUBE AUDIO ERROR]',
+      error
+    );
 
-    if (fs.existsSync(outputPath)) {
-      try { fs.unlinkSync(outputPath); } catch { }
-    }
+    removeFile(
+      outputPath
+    );
 
     let message =
       error?.stderr ||
@@ -357,8 +660,11 @@ async function handleYouTubeAudio(videoUrl) {
       error?.message ||
       String(error);
 
-    if (typeof message !== 'string') {
-      message = JSON.stringify(message);
+    if (
+      typeof message !== 'string'
+    ) {
+      message =
+        JSON.stringify(message);
     }
 
     throw new Error(
@@ -367,5 +673,12 @@ async function handleYouTubeAudio(videoUrl) {
   }
 }
 
-module.exports = handleYouTube;
-module.exports.handleYouTubeAudio = handleYouTubeAudio;
+// ======================================================
+// EXPORT
+// ======================================================
+
+module.exports =
+  handleYouTube;
+
+module.exports.handleYouTubeAudio =
+  handleYouTubeAudio;

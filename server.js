@@ -7,26 +7,80 @@ const os = require('os');
 const { v4: uuidv4 } = require('uuid');
 const ffmpeg = require('fluent-ffmpeg');
 
-const downloadDir = path.join(os.tmpdir(), 'downloads');
-
-if (!fs.existsSync(downloadDir)) {
-  fs.mkdirSync(downloadDir, { recursive: true });
-}
-
-// Import modular API router
-const apiEngine = require('./api');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ======================================================
+// VERCEL / SERVERLESS TEMP DIRECTORY
+// ======================================================
 
-// ==========================================
-// CONFIGURATION & ADMIN AUTH STORE
-// ==========================================
+const TEMP_ROOT = os.tmpdir();
 
-const CONFIG_PATH = path.join(__dirname, 'admin-config.json');
+const DOWNLOAD_DIR = path.join(
+  TEMP_ROOT,
+  'downloads'
+);
+
+const FACEBOOK_DOWNLOAD_DIR = path.join(
+  TEMP_ROOT,
+  'facebook'
+);
+
+const FACEBOOK_IMAGE_DIR = path.join(
+  FACEBOOK_DOWNLOAD_DIR,
+  'images'
+);
+
+const FRAMES_DIR = path.join(
+  TEMP_ROOT,
+  'frames'
+);
+
+[
+  DOWNLOAD_DIR,
+  FACEBOOK_DOWNLOAD_DIR,
+  FACEBOOK_IMAGE_DIR,
+  FRAMES_DIR
+].forEach((dir) => {
+  try {
+    fs.mkdirSync(dir, {
+      recursive: true
+    });
+  } catch (err) {
+    console.error(
+      `[INIT ERROR] Cannot create ${dir}:`,
+      err.message
+    );
+  }
+});
+
+// ======================================================
+// MODULAR API
+// ======================================================
+
+const apiEngine = require('./api');
+
+// ======================================================
+// EXPRESS
+// ======================================================
+
+app.use(express.json({
+  limit: '2mb'
+}));
+
+app.use(express.urlencoded({
+  extended: true,
+  limit: '2mb'
+}));
+
+// ======================================================
+// CONFIGURATION
+// ======================================================
+
+const CONFIG_PATH = path.join(
+  __dirname,
+  'admin-config.json'
+);
 
 const DEFAULT_PLATFORMS = {
   tiktok: {
@@ -60,18 +114,15 @@ const DEFAULT_PLATFORMS = {
   }
 };
 
-
 function loadConfig() {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
-      const data =
-        fs.readFileSync(
-          CONFIG_PATH,
-          'utf8'
-        );
+      const data = fs.readFileSync(
+        CONFIG_PATH,
+        'utf8'
+      );
 
-      const parsed =
-        JSON.parse(data);
+      const parsed = JSON.parse(data);
 
       return {
         adminPassword:
@@ -96,10 +147,14 @@ function loadConfig() {
           },
 
         blockedIPs:
-          parsed.blockedIPs || [],
+          Array.isArray(parsed.blockedIPs)
+            ? parsed.blockedIPs
+            : [],
 
         blockedDevices:
-          parsed.blockedDevices || [],
+          Array.isArray(parsed.blockedDevices)
+            ? parsed.blockedDevices
+            : [],
 
         platforms:
           parsed.platforms ||
@@ -119,8 +174,7 @@ function loadConfig() {
 
     maintenance: {
       enabled: false,
-      title:
-        'Website đang bảo trì',
+      title: 'Website đang bảo trì',
       message:
         'Chúng tôi đang nâng cấp hệ thống để mang lại trải nghiệm tốt hơn. Vui lòng quay lại sau.',
       estimatedTime: ''
@@ -135,11 +189,9 @@ function loadConfig() {
 
     blockedIPs: [],
     blockedDevices: [],
-    platforms:
-      DEFAULT_PLATFORMS
+    platforms: DEFAULT_PLATFORMS
   };
 }
-
 
 function saveConfig(config) {
   try {
@@ -160,58 +212,41 @@ function saveConfig(config) {
   }
 }
 
+let appConfig = loadConfig();
 
-let appConfig =
-  loadConfig();
+// ======================================================
+// AUTH
+// ======================================================
 
+const activeTokens = new Set();
 
-// ==========================================
-// IN-MEMORY AUTH TOKENS
-// ==========================================
-
-const activeTokens =
-  new Set();
-
-
-function authMiddleware(
-  req,
-  res,
-  next
-) {
+function authMiddleware(req, res, next) {
   const token =
-    req.headers[
-    'x-admin-token'
-    ];
+    req.headers['x-admin-token'];
 
   if (
     !token ||
     !activeTokens.has(token)
   ) {
-    return res
-      .status(401)
-      .json({
-        error:
-          'Phiên làm việc không hợp lệ hoặc đã hết hạn.'
-      });
+    return res.status(401).json({
+      error:
+        'Phiên làm việc không hợp lệ hoặc đã hết hạn.'
+    });
   }
 
   next();
 }
 
-
-// ==========================================
-// ACCESS LOGS
-// ==========================================
+// ======================================================
+// ACCESS LOG
+// ======================================================
 
 const accessLogs = [];
 const MAX_LOGS = 500;
 
-
 function getClientIP(req) {
   const forwarded =
-    req.headers[
-    'x-forwarded-for'
-    ];
+    req.headers['x-forwarded-for'];
 
   if (forwarded) {
     return forwarded
@@ -226,288 +261,216 @@ function getClientIP(req) {
   );
 }
 
-
-// ==========================================
+// ======================================================
 // SECURITY / LOGGING / MAINTENANCE
-// ==========================================
+// ======================================================
 
-app.use(
-  (req, res, next) => {
-    const rawIP =
-      getClientIP(req);
+app.use((req, res, next) => {
+  const rawIP =
+    getClientIP(req);
 
-    const cleanIP =
-      rawIP.replace(
-        /^::ffff:/,
-        ''
-      );
+  const cleanIP =
+    rawIP.replace(
+      /^::ffff:/,
+      ''
+    );
 
-    const ua =
-      req.headers[
-      'user-agent'
-      ] || '';
+  const ua =
+    req.headers['user-agent'] || '';
 
-    // --------------------------------------
-    // ACCESS LOG
-    // --------------------------------------
+  // ACCESS LOG
+  if (
+    !req.url.match(
+      /\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i
+    )
+  ) {
+    accessLogs.unshift({
+      time:
+        new Date().toISOString(),
+
+      ip: cleanIP,
+
+      method:
+        req.method,
+
+      url:
+        req.originalUrl ||
+        req.url,
+
+      ua
+    });
 
     if (
-      !req.url.match(
-        /\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/i
-      )
+      accessLogs.length >
+      MAX_LOGS
     ) {
-      accessLogs.unshift({
-        time:
-          new Date().toISOString(),
-
-        ip: cleanIP,
-
-        method:
-          req.method,
-
-        url:
-          req.originalUrl ||
-          req.url,
-
-        ua
-      });
-
-      if (
-        accessLogs.length >
-        MAX_LOGS
-      ) {
-        accessLogs.pop();
-      }
+      accessLogs.pop();
     }
+  }
 
+  // IP BLOCK
+  const isIPBlocked =
+    appConfig.blockedIPs.some(
+      (item) => {
+        const blockedIP =
+          typeof item === 'string'
+            ? item
+            : item.ip;
 
-    // --------------------------------------
-    // IP BLOCKING
-    // --------------------------------------
+        return (
+          blockedIP ===
+          cleanIP
+        );
+      }
+    );
 
-    const isIPBlocked =
-      appConfig.blockedIPs.some(
-        (item) => {
-          const blockedIP =
-            typeof item === 'string'
-              ? item
-              : item.ip;
+  if (isIPBlocked) {
+    console.log(
+      `[SECURITY] Blocked IP attempt: ${cleanIP}`
+    );
 
-          return (
-            blockedIP ===
-            cleanIP
+    return res.status(403).json({
+      error:
+        'Địa chỉ IP của bạn đã bị chặn truy cập.'
+    });
+  }
+
+  // DEVICE BLOCK
+  const isDeviceBlocked =
+    appConfig.blockedDevices.some(
+      (item) => {
+        const pattern =
+          typeof item === 'string'
+            ? item
+            : item.pattern;
+
+        if (!pattern) {
+          return false;
+        }
+
+        return ua
+          .toLowerCase()
+          .includes(
+            pattern.toLowerCase()
           );
-        }
-      );
+      }
+    );
 
-    if (isIPBlocked) {
-      console.log(
-        `[SECURITY] Blocked IP attempt: ${cleanIP} on ${req.url}`
-      );
+  if (isDeviceBlocked) {
+    console.log(
+      `[SECURITY] Blocked Device attempt: UA "${ua}"`
+    );
 
-      return res
-        .status(403)
-        .json({
-          error:
-            'Địa chỉ IP của bạn đã bị chặn truy cập.'
-        });
+    return res.status(403).json({
+      error:
+        'Thiết bị/Trình duyệt của bạn đã bị chặn truy cập.'
+    });
+  }
+
+  // MAINTENANCE
+  const isAdminRoute =
+    req.url.startsWith('/admin') ||
+    req.url.startsWith('/api/admin');
+
+  const isPublicConfigRoute =
+    req.url.startsWith(
+      '/api/public/config'
+    );
+
+  if (
+    appConfig.maintenance?.enabled &&
+    !isAdminRoute &&
+    !isPublicConfigRoute
+  ) {
+    if (
+      req.url.startsWith('/api/')
+    ) {
+      return res.status(503).json({
+        maintenance: true,
+
+        title:
+          appConfig.maintenance.title,
+
+        message:
+          appConfig.maintenance.message,
+
+        estimatedTime:
+          appConfig.maintenance.estimatedTime
+      });
     }
-
-
-    // --------------------------------------
-    // DEVICE BLOCKING
-    // --------------------------------------
-
-    const isDeviceBlocked =
-      appConfig.blockedDevices.some(
-        (item) => {
-          const pattern =
-            typeof item === 'string'
-              ? item
-              : item.pattern;
-
-          if (!pattern) {
-            return false;
-          }
-
-          return ua
-            .toLowerCase()
-            .includes(
-              pattern.toLowerCase()
-            );
-        }
-      );
-
-    if (isDeviceBlocked) {
-      console.log(
-        `[SECURITY] Blocked Device attempt: UA "${ua}" on ${req.url}`
-      );
-
-      return res
-        .status(403)
-        .json({
-          error:
-            'Thiết bị/Trình duyệt của bạn đã bị chặn truy cập.'
-        });
-    }
-
-
-    // --------------------------------------
-    // MAINTENANCE
-    // --------------------------------------
-
-    const isAdminRoute =
-      req.url.startsWith(
-        '/admin'
-      ) ||
-      req.url.startsWith(
-        '/api/admin'
-      );
-
-    const isPublicConfigRoute =
-      req.url.startsWith(
-        '/api/public/config'
-      );
 
     if (
-      appConfig.maintenance?.enabled &&
-      !isAdminRoute &&
-      !isPublicConfigRoute
+      req.accepts('html')
     ) {
-      if (
-        req.url.startsWith(
-          '/api/'
-        )
-      ) {
-        return res
-          .status(503)
-          .json({
-            maintenance: true,
-
-            title:
-              appConfig.maintenance.title,
-
-            message:
-              appConfig.maintenance.message,
-
-            estimatedTime:
-              appConfig.maintenance.estimatedTime
-          });
-      }
-
-      if (
-        req.accepts('html')
-      ) {
-        return res
-          .status(503)
-          .send(`
+      return res.status(503).send(`
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <title>
-    ${appConfig.maintenance.title || 'Website đang bảo trì'}
-  </title>
-
-  <link
-    href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&display=swap"
-    rel="stylesheet"
-  >
-
-  <style>
-    body {
-      font-family: 'Be Vietnam Pro', sans-serif;
-      background: #07071a;
-      color: #f3f4f6;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
-      text-align: center;
-    }
-
-    .card {
-      background: rgba(18, 18, 29, 0.85);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 20px;
-      padding: 40px;
-      max-width: 480px;
-      backdrop-filter: blur(20px);
-      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-    }
-
-    .icon {
-      font-size: 3rem;
-      margin-bottom: 16px;
-    }
-
-    h1 {
-      font-size: 1.6rem;
-      color: #a855f7;
-      margin-bottom: 12px;
-    }
-
-    p {
-      color: #9ca3af;
-      font-size: 1rem;
-      line-height: 1.6;
-      margin-bottom: 16px;
-    }
-
-    .time {
-      display: inline-block;
-      background: rgba(168,85,247,0.15);
-      color: #a855f7;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-weight: 600;
-      font-size: 0.85rem;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${appConfig.maintenance.title || 'Website đang bảo trì'}</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background:#07071a;
+  color:#f3f4f6;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:100vh;
+  margin:0;
+  padding:20px;
+  text-align:center;
+}
+.card {
+  background:rgba(18,18,29,.85);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:20px;
+  padding:40px;
+  max-width:480px;
+}
+.icon {
+  font-size:3rem;
+  margin-bottom:16px;
+}
+h1 {
+  color:#a855f7;
+}
+p {
+  color:#9ca3af;
+  line-height:1.6;
+}
+.time {
+  display:inline-block;
+  background:rgba(168,85,247,.15);
+  color:#a855f7;
+  padding:6px 14px;
+  border-radius:20px;
+}
+</style>
 </head>
-
 <body>
-  <div class="card">
-
-    <div class="icon">
-      🛠️
-    </div>
-
-    <h1>
-      ${appConfig.maintenance.title || 'Website đang bảo trì'}
-    </h1>
-
-    <p>
-      ${appConfig.maintenance.message || 'Chúng tôi đang bảo trì hệ thống. Vui lòng quay lại sau.'}
-    </p>
-
-    ${appConfig.maintenance.estimatedTime
-              ? `<div class="time">
-            ⏱ Dự kiến:
-            ${appConfig.maintenance.estimatedTime}
-          </div>`
-              : ''
-            }
-
-  </div>
+<div class="card">
+<div class="icon">🛠️</div>
+<h1>${appConfig.maintenance.title || 'Website đang bảo trì'}</h1>
+<p>${appConfig.maintenance.message || 'Chúng tôi đang bảo trì hệ thống. Vui lòng quay lại sau.'}</p>
+${appConfig.maintenance.estimatedTime
+          ? `<div class="time">⏱ Dự kiến: ${appConfig.maintenance.estimatedTime}</div>`
+          : ''
+        }
+</div>
 </body>
 </html>
-        `);
-      }
+`);
     }
-
-    next();
   }
-);
 
+  next();
+});
 
-// ==========================================
+// ======================================================
 // STATIC PUBLIC
-// ==========================================
+// ======================================================
 
 app.use(
   express.static(
@@ -518,140 +481,34 @@ app.use(
   )
 );
 
+// ======================================================
+// MIME
+// ======================================================
 
-// ==========================================
-// DOWNLOAD DIRECTORIES
-// ==========================================
-
-// ------------------------------------------
-// NORMAL DOWNLOAD
-// ------------------------------------------
-
-const DOWNLOAD_DIR =
-  path.join(
-    __dirname,
-    'downloads'
-  );
-
-if (
-  !fs.existsSync(
-    DOWNLOAD_DIR
-  )
-) {
-  fs.mkdirSync(
-    DOWNLOAD_DIR,
-    {
-      recursive: true
-    }
-  );
-}
-
-
-// ------------------------------------------
-// FACEBOOK DOWNLOAD
-// ------------------------------------------
-
-const FACEBOOK_DOWNLOAD_DIR =
-  path.join(
-    __dirname,
-    'facebook'
-  );
-
-if (
-  !fs.existsSync(
-    FACEBOOK_DOWNLOAD_DIR
-  )
-) {
-  fs.mkdirSync(
-    FACEBOOK_DOWNLOAD_DIR,
-    {
-      recursive: true
-    }
-  );
-}
-
-
-// ------------------------------------------
-// FACEBOOK IMAGES
-// ------------------------------------------
-
-const FACEBOOK_IMAGE_DIR =
-  path.join(
-    FACEBOOK_DOWNLOAD_DIR,
-    'images'
-  );
-
-if (
-  !fs.existsSync(
-    FACEBOOK_IMAGE_DIR
-  )
-) {
-  fs.mkdirSync(
-    FACEBOOK_IMAGE_DIR,
-    {
-      recursive: true
-    }
-  );
-}
-
-
-// ==========================================
-// MIME TYPE
-// ==========================================
-
-function getMimeType(
-  filePath
-) {
+function getMimeType(filePath) {
   const ext =
     path.extname(
       filePath
     ).toLowerCase();
 
   const mimeTypes = {
-    '.mp4':
-      'video/mp4',
+    '.mp4': 'video/mp4',
+    '.m4v': 'video/mp4',
+    '.webm': 'video/webm',
+    '.mov': 'video/quicktime',
+    '.avi': 'video/x-msvideo',
+    '.mkv': 'video/x-matroska',
 
-    '.m4v':
-      'video/mp4',
+    '.mp3': 'audio/mpeg',
+    '.m4a': 'audio/mp4',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
 
-    '.webm':
-      'video/webm',
-
-    '.mov':
-      'video/quicktime',
-
-    '.avi':
-      'video/x-msvideo',
-
-    '.mkv':
-      'video/x-matroska',
-
-    '.mp3':
-      'audio/mpeg',
-
-    '.m4a':
-      'audio/mp4',
-
-    '.wav':
-      'audio/wav',
-
-    '.ogg':
-      'audio/ogg',
-
-    '.jpg':
-      'image/jpeg',
-
-    '.jpeg':
-      'image/jpeg',
-
-    '.png':
-      'image/png',
-
-    '.webp':
-      'image/webp',
-
-    '.gif':
-      'image/gif'
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif'
   };
 
   return (
@@ -660,10 +517,10 @@ function getMimeType(
   );
 }
 
-
-// ==========================================
-// SERVE NORMAL DOWNLOAD FILES
-// ==========================================
+// ======================================================
+// NORMAL DOWNLOAD
+// /downloads/file.mp4
+// ======================================================
 
 app.use(
   '/downloads',
@@ -674,7 +531,7 @@ app.use(
 
       fallthrough: false,
 
-      setHeaders: (res) => {
+      setHeaders: (res, filePath) => {
         res.setHeader(
           'Access-Control-Allow-Origin',
           '*'
@@ -684,19 +541,19 @@ app.use(
           'Cache-Control',
           'public, max-age=3600'
         );
+
+        res.setHeader(
+          'Content-Type',
+          getMimeType(filePath)
+        );
       }
     }
   )
 );
 
-
-// ==========================================
-// SERVE FACEBOOK FILES
-//
-// /facebook/file.mp4
-//
-// /facebook/images/file.jpg
-// ==========================================
+// ======================================================
+// FACEBOOK
+// ======================================================
 
 app.use(
   '/facebook',
@@ -723,25 +580,12 @@ app.use(
 
         res.setHeader(
           'Content-Type',
-          getMimeType(
-            filePath
-          )
+          getMimeType(filePath)
         );
       }
     }
   )
 );
-
-
-// ==========================================
-// COMPATIBILITY ROUTES
-//
-// Facebook handler có thể trả:
-//
-// /download/facebook/file.mp4
-//
-// Vì vậy phải hỗ trợ URL này.
-// ==========================================
 
 app.use(
   '/download/facebook',
@@ -768,19 +612,78 @@ app.use(
 
         res.setHeader(
           'Content-Type',
-          getMimeType(
-            filePath
-          )
+          getMimeType(filePath)
         );
       }
     }
   )
 );
 
+// ======================================================
+// FRAMES
+// /temp/uuid/frame-001.jpg
+// ======================================================
 
-// ==========================================
-// PUBLIC API
-// ==========================================
+app.get(
+  '/temp/:uid/:file',
+  (req, res) => {
+    const uid =
+      req.params.uid;
+
+    const file =
+      req.params.file;
+
+    const root =
+      path.resolve(
+        FRAMES_DIR,
+        uid
+      );
+
+    const filePath =
+      path.resolve(
+        root,
+        file
+      );
+
+    if (
+      filePath !== root &&
+      !filePath.startsWith(
+        root + path.sep
+      )
+    ) {
+      return res.status(400).end();
+    }
+
+    if (
+      !fs.existsSync(filePath)
+    ) {
+      return res.status(404).end();
+    }
+
+    res.setHeader(
+      'Access-Control-Allow-Origin',
+      '*'
+    );
+
+    res.setHeader(
+      'Cache-Control',
+      'public, max-age=3600'
+    );
+
+    res.setHeader(
+      'Content-Type',
+      'image/jpeg'
+    );
+
+    res.sendFile(
+      filePath
+    );
+  }
+);
+
+// ======================================================
+// PUBLIC CONFIG
+// ======================================================
 
 app.get(
   '/api/public/config',
@@ -799,10 +702,9 @@ app.get(
   }
 );
 
-
-// ==========================================
+// ======================================================
 // ADMIN LOGIN
-// ==========================================
+// ======================================================
 
 app.post(
   '/api/admin/login',
@@ -821,9 +723,7 @@ app.post(
           .randomBytes(32)
           .toString('hex');
 
-      activeTokens.add(
-        token
-      );
+      activeTokens.add(token);
 
       return res.json({
         token,
@@ -831,19 +731,16 @@ app.post(
       });
     }
 
-    return res
-      .status(401)
-      .json({
-        error:
-          'Mật khẩu không chính xác.'
-      });
+    return res.status(401).json({
+      error:
+        'Mật khẩu không chính xác.'
+    });
   }
 );
 
-
-// ==========================================
+// ======================================================
 // ADMIN CONFIG
-// ==========================================
+// ======================================================
 
 app.get(
   '/api/admin/config',
@@ -861,10 +758,9 @@ app.get(
   }
 );
 
-
-// ==========================================
+// ======================================================
 // ADMIN MAINTENANCE
-// ==========================================
+// ======================================================
 
 app.post(
   '/api/admin/maintenance',
@@ -891,23 +787,19 @@ app.post(
         estimatedTime || ''
     };
 
-    saveConfig(
-      appConfig
-    );
+    saveConfig(appConfig);
 
     res.json({
       success: true,
-
       maintenance:
         appConfig.maintenance
     });
   }
 );
 
-
-// ==========================================
+// ======================================================
 // ADMIN BANNER
-// ==========================================
+// ======================================================
 
 app.post(
   '/api/admin/banner',
@@ -929,23 +821,19 @@ app.post(
         type || 'info'
     };
 
-    saveConfig(
-      appConfig
-    );
+    saveConfig(appConfig);
 
     res.json({
       success: true,
-
       banner:
         appConfig.banner
     });
   }
 );
 
-
-// ==========================================
+// ======================================================
 // ADMIN PLATFORMS
-// ==========================================
+// ======================================================
 
 app.post(
   '/api/admin/platforms',
@@ -957,30 +845,25 @@ app.post(
 
     if (
       platforms &&
-      typeof platforms ===
-      'object'
+      typeof platforms === 'object'
     ) {
       appConfig.platforms =
         platforms;
 
-      saveConfig(
-        appConfig
-      );
+      saveConfig(appConfig);
     }
 
     res.json({
       success: true,
-
       platforms:
         appConfig.platforms
     });
   }
 );
 
-
-// ==========================================
+// ======================================================
 // ADMIN IP BLOCK
-// ==========================================
+// ======================================================
 
 app.post(
   '/api/admin/ip/block',
@@ -992,20 +875,17 @@ app.post(
     } = req.body;
 
     if (!ip) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Vui lòng cung cấp địa chỉ IP.'
-        });
+      return res.status(400).json({
+        error:
+          'Vui lòng cung cấp địa chỉ IP.'
+      });
     }
 
     const exists =
       appConfig.blockedIPs.some(
         (item) =>
           (
-            typeof item ===
-              'string'
+            typeof item === 'string'
               ? item
               : item.ip
           ) === ip
@@ -1023,24 +903,20 @@ app.post(
           new Date().toISOString()
       });
 
-      saveConfig(
-        appConfig
-      );
+      saveConfig(appConfig);
     }
 
     res.json({
       success: true,
-
       blockedIPs:
         appConfig.blockedIPs
     });
   }
 );
 
-
-// ==========================================
+// ======================================================
 // ADMIN IP UNBLOCK
-// ==========================================
+// ======================================================
 
 app.delete(
   '/api/admin/ip/:ip',
@@ -1055,30 +931,25 @@ app.delete(
       appConfig.blockedIPs.filter(
         (item) =>
           (
-            typeof item ===
-              'string'
+            typeof item === 'string'
               ? item
               : item.ip
           ) !== ip
       );
 
-    saveConfig(
-      appConfig
-    );
+    saveConfig(appConfig);
 
     res.json({
       success: true,
-
       blockedIPs:
         appConfig.blockedIPs
     });
   }
 );
 
-
-// ==========================================
+// ======================================================
 // ADMIN DEVICE BLOCK
-// ==========================================
+// ======================================================
 
 app.post(
   '/api/admin/device/block',
@@ -1090,12 +961,10 @@ app.post(
     } = req.body;
 
     if (!pattern) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Vui lòng cung cấp pattern thiết bị.'
-        });
+      return res.status(400).json({
+        error:
+          'Vui lòng cung cấp pattern thiết bị.'
+      });
     }
 
     appConfig.blockedDevices.push({
@@ -1109,23 +978,19 @@ app.post(
         new Date().toISOString()
     });
 
-    saveConfig(
-      appConfig
-    );
+    saveConfig(appConfig);
 
     res.json({
       success: true,
-
       blockedDevices:
         appConfig.blockedDevices
     });
   }
 );
 
-
-// ==========================================
+// ======================================================
 // ADMIN DEVICE UNBLOCK
-// ==========================================
+// ======================================================
 
 app.delete(
   '/api/admin/device/:index',
@@ -1141,18 +1006,14 @@ app.delete(
       !isNaN(index) &&
       index >= 0 &&
       index <
-      appConfig
-        .blockedDevices
-        .length
+      appConfig.blockedDevices.length
     ) {
       appConfig.blockedDevices.splice(
         index,
         1
       );
 
-      saveConfig(
-        appConfig
-      );
+      saveConfig(appConfig);
     }
 
     res.json({
@@ -1164,10 +1025,9 @@ app.delete(
   }
 );
 
-
-// ==========================================
+// ======================================================
 // ADMIN LOGS
-// ==========================================
+// ======================================================
 
 app.get(
   '/api/admin/logs',
@@ -1180,10 +1040,9 @@ app.get(
   }
 );
 
-
-// ==========================================
+// ======================================================
 // ADMIN PASSWORD
-// ==========================================
+// ======================================================
 
 app.post(
   '/api/admin/password',
@@ -1198,44 +1057,35 @@ app.post(
       !currentPassword ||
       !newPassword
     ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Vui lòng cung cấp đầy đủ thông tin.'
-        });
+      return res.status(400).json({
+        error:
+          'Vui lòng cung cấp đầy đủ thông tin.'
+      });
     }
 
     if (
       currentPassword !==
       appConfig.adminPassword
     ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Mật khẩu hiện tại không đúng.'
-        });
+      return res.status(400).json({
+        error:
+          'Mật khẩu hiện tại không đúng.'
+      });
     }
 
     if (
-      newPassword.length <
-      6
+      newPassword.length < 6
     ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Mật khẩu mới phải có ít nhất 6 ký tự.'
-        });
+      return res.status(400).json({
+        error:
+          'Mật khẩu mới phải có ít nhất 6 ký tự.'
+      });
     }
 
     appConfig.adminPassword =
       newPassword;
 
-    saveConfig(
-      appConfig
-    );
+    saveConfig(appConfig);
 
     activeTokens.clear();
 
@@ -1248,10 +1098,9 @@ app.post(
   }
 );
 
-
-// ==========================================
+// ======================================================
 // MEDIA INFO
-// ==========================================
+// ======================================================
 
 app.get(
   '/api/info',
@@ -1260,12 +1109,10 @@ app.get(
       req.query.url;
 
     if (!videoUrl) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Vui lòng cung cấp đường dẫn video hoặc hình ảnh.'
-        });
+      return res.status(400).json({
+        error:
+          'Vui lòng cung cấp đường dẫn video hoặc hình ảnh.'
+      });
     }
 
     const platform =
@@ -1274,8 +1121,7 @@ app.get(
       );
 
     const pConfig =
-      appConfig
-        .platforms?.[
+      appConfig.platforms?.[
       platform
       ];
 
@@ -1283,47 +1129,36 @@ app.get(
       pConfig &&
       pConfig.enabled === false
     ) {
-      const pName =
-        pConfig.name ||
-        platform.toUpperCase();
-
-      return res
-        .status(503)
-        .json({
-          error:
-            `Tính năng tải từ ${pName} hiện đang bảo trì. Vui lòng quay lại sau.`
-        });
+      return res.status(503).json({
+        error:
+          `Tính năng tải từ ${pConfig.name ||
+          platform.toUpperCase()
+          } hiện đang bảo trì. Vui lòng quay lại sau.`
+      });
     }
 
     try {
-      const {
-        platform,
-        data
-      } =
+      const result =
         await apiEngine.extractMedia(
           videoUrl
         );
 
-      if (data) {
-        const responsePayload =
-          Object.assign(
-            {
-              platform
-            },
-            data
-          );
+      if (
+        result &&
+        result.data
+      ) {
+        return res.json({
+          platform:
+            result.platform,
 
-        return res.json(
-          responsePayload
-        );
+          ...result.data
+        });
       }
 
-      return res
-        .status(400)
-        .json({
-          error:
-            'Không thể lấy dữ liệu từ liên kết này. Vui lòng kiểm tra lại link hoặc thử lại sau.'
-        });
+      return res.status(400).json({
+        error:
+          'Không thể lấy dữ liệu từ liên kết này. Vui lòng kiểm tra lại link hoặc thử lại sau.'
+      });
 
     } catch (error) {
       console.error(
@@ -1331,36 +1166,21 @@ app.get(
         error
       );
 
-      return res
-        .status(500)
-        .json({
-          error:
-            'Lỗi máy chủ trong quá trình xử lý đường dẫn.'
-        });
+      return res.status(500).json({
+        error:
+          'Lỗi máy chủ trong quá trình xử lý đường dẫn.'
+      });
     }
   }
 );
 
-
-// ==========================================
+// ======================================================
 // LOCAL FILE RESOLVER
-//
-// Hỗ trợ:
-//
-// /downloads/file.mp4
-// /download/file.mp4
-// /facebook/file.mp4
-// /download/facebook/file.mp4
-//
-// Đây là phần quan trọng sửa lỗi Facebook.
-// ==========================================
+// ======================================================
 
-function resolveLocalFile(
-  mediaUrl
-) {
+function resolveLocalFile(mediaUrl) {
   if (
-    typeof mediaUrl !==
-    'string'
+    typeof mediaUrl !== 'string'
   ) {
     return null;
   }
@@ -1370,25 +1190,17 @@ function resolveLocalFile(
 
   try {
     if (
-      mediaUrl.startsWith(
-        'http://'
-      ) ||
-      mediaUrl.startsWith(
-        'https://'
-      )
+      mediaUrl.startsWith('http://') ||
+      mediaUrl.startsWith('https://')
     ) {
       const parsed =
-        new URL(
-          mediaUrl
-        );
+        new URL(mediaUrl);
 
       pathname =
         parsed.pathname;
     } else {
       pathname =
-        mediaUrl.split(
-          '?'
-        )[0];
+        mediaUrl.split('?')[0];
     }
   } catch {
     return null;
@@ -1411,11 +1223,7 @@ function resolveLocalFile(
       ''
     );
 
-
-  // ========================================
   // /downloads/...
-  // ========================================
-
   if (
     pathname.startsWith(
       'downloads/'
@@ -1449,22 +1257,13 @@ function resolveLocalFile(
     }
 
     return {
-      type:
-        'download',
-
+      type: 'download',
       relativePath,
-
       filePath
     };
   }
 
-
-  // ========================================
   // /download/...
-  //
-  // Tương thích URL cũ.
-  // ========================================
-
   if (
     pathname.startsWith(
       'download/'
@@ -1475,11 +1274,7 @@ function resolveLocalFile(
         'download/'.length
       );
 
-
-    // --------------------------------------
     // /download/facebook/...
-    // --------------------------------------
-
     if (
       relative.startsWith(
         'facebook/'
@@ -1513,19 +1308,11 @@ function resolveLocalFile(
       }
 
       return {
-        type:
-          'facebook',
-
+        type: 'facebook',
         relativePath,
-
         filePath
       };
     }
-
-
-    // --------------------------------------
-    // /download/...
-    // --------------------------------------
 
     const filePath =
       path.resolve(
@@ -1550,21 +1337,13 @@ function resolveLocalFile(
     }
 
     return {
-      type:
-        'download',
-
-      relativePath:
-        relative,
-
+      type: 'download',
+      relativePath: relative,
       filePath
     };
   }
 
-
-  // ========================================
   // /facebook/...
-  // ========================================
-
   if (
     pathname.startsWith(
       'facebook/'
@@ -1598,36 +1377,31 @@ function resolveLocalFile(
     }
 
     return {
-      type:
-        'facebook',
-
+      type: 'facebook',
       relativePath,
-
       filePath
     };
   }
 
-
   return null;
 }
 
-
-// ==========================================
-// CDN / LOCAL STREAM
-// ==========================================
+// ======================================================
+// FETCH CDN / LOCAL
+// ======================================================
 
 async function fetchFromCDN(
   mediaUrl,
   rangeHeader
 ) {
-  // ========================================
-  // LOCAL FILE
-  // ========================================
-
   const local =
     resolveLocalFile(
       mediaUrl
     );
+
+  // ====================================================
+  // LOCAL FILE
+  // ====================================================
 
   if (local) {
     if (
@@ -1645,9 +1419,7 @@ async function fetchFromCDN(
         local.filePath
       );
 
-    if (
-      !stat.isFile()
-    ) {
+    if (!stat.isFile()) {
       throw new Error(
         'Đường dẫn không phải file'
       );
@@ -1657,29 +1429,17 @@ async function fetchFromCDN(
       stat.size;
 
     let start = 0;
-
-    let end =
-      fileSize - 1;
-
+    let end = fileSize - 1;
     let status = 200;
 
-
-    // --------------------------------------
-    // RANGE
-    // --------------------------------------
-
-    if (
-      rangeHeader
-    ) {
+    if (rangeHeader) {
       const match =
         rangeHeader.match(
           /bytes=(\d*)-(\d*)/
         );
 
       if (match) {
-        if (
-          match[1]
-        ) {
+        if (match[1]) {
           start =
             parseInt(
               match[1],
@@ -1687,17 +1447,12 @@ async function fetchFromCDN(
             );
         }
 
-        if (
-          match[2]
-        ) {
+        if (match[2]) {
           end =
             parseInt(
               match[2],
               10
             );
-        } else {
-          end =
-            fileSize - 1;
         }
 
         if (
@@ -1708,8 +1463,7 @@ async function fetchFromCDN(
               'Range Not Satisfiable'
             );
 
-          error.status =
-            416;
+          error.status = 416;
 
           error.headers = {
             'Content-Range':
@@ -1725,16 +1479,13 @@ async function fetchFromCDN(
             fileSize - 1
           );
 
-        if (
-          end < start
-        ) {
+        if (end < start) {
           const error =
             new Error(
               'Range Not Satisfiable'
             );
 
-          error.status =
-            416;
+          error.status = 416;
 
           error.headers = {
             'Content-Range':
@@ -1744,15 +1495,12 @@ async function fetchFromCDN(
           throw error;
         }
 
-        status =
-          206;
+        status = 206;
       }
     }
 
-
     const contentLength =
       end - start + 1;
-
 
     const stream =
       fs.createReadStream(
@@ -1763,24 +1511,18 @@ async function fetchFromCDN(
         }
       );
 
-
-    const contentType =
-      getMimeType(
-        local.filePath
-      );
-
-
     console.log(
       `[LOCAL STREAM] ${local.type}: ${local.filePath}`
     );
-
 
     return {
       status,
 
       headers: {
         'content-type':
-          contentType,
+          getMimeType(
+            local.filePath
+          ),
 
         'content-length':
           contentLength,
@@ -1796,42 +1538,32 @@ async function fetchFromCDN(
           'bytes'
       },
 
-      data:
-        stream
+      data: stream
     };
   }
 
-
-  // ========================================
+  // ====================================================
   // REMOTE CDN
-  // ========================================
+  // ====================================================
 
   let referer =
     'https://www.google.com/';
 
-  let origin =
-    null;
+  let origin = null;
 
-  let extraHeaders =
-    {};
-
+  const extraHeaders = {};
 
   try {
-    const parsedHost =
+    const hostname =
       new URL(
         mediaUrl
-      ).hostname;
-
-
-    // --------------------------------------
-    // PINTEREST
-    // --------------------------------------
+      ).hostname.toLowerCase();
 
     if (
-      parsedHost.includes(
+      hostname.includes(
         'pinimg.com'
       ) ||
-      parsedHost.includes(
+      hostname.includes(
         'pinterest.com'
       )
     ) {
@@ -1843,32 +1575,20 @@ async function fetchFromCDN(
 
       extraHeaders[
         'Sec-Fetch-Dest'
-      ] =
-        'image';
+      ] = 'image';
 
       extraHeaders[
         'Sec-Fetch-Mode'
-      ] =
-        'no-cors';
+      ] = 'no-cors';
 
       extraHeaders[
         'Sec-Fetch-Site'
-      ] =
-        'cross-site';
+      ] = 'cross-site';
     }
 
-
-    // --------------------------------------
-    // TIKTOK
-    // --------------------------------------
-
     else if (
-      parsedHost.includes(
-        'tiktok'
-      ) ||
-      parsedHost.includes(
-        'tiktokcdn'
-      )
+      hostname.includes('tiktok') ||
+      hostname.includes('tiktokcdn')
     ) {
       referer =
         'https://www.tiktok.com/';
@@ -1877,27 +1597,12 @@ async function fetchFromCDN(
         'https://www.tiktok.com';
     }
 
-
-    // --------------------------------------
-    // TWITTER / X
-    // --------------------------------------
-
     else if (
-      parsedHost.includes(
-        'twimg.com'
-      ) ||
-      parsedHost.includes(
-        'pbs.twimg.com'
-      ) ||
-      parsedHost.includes(
-        'video.twimg.com'
-      ) ||
-      parsedHost.includes(
-        'twitter.com'
-      ) ||
-      parsedHost.includes(
-        'x.com'
-      )
+      hostname.includes('twimg.com') ||
+      hostname.includes('pbs.twimg.com') ||
+      hostname.includes('video.twimg.com') ||
+      hostname.includes('twitter.com') ||
+      hostname.includes('x.com')
     ) {
       referer =
         'https://twitter.com/';
@@ -1907,35 +1612,21 @@ async function fetchFromCDN(
 
       extraHeaders[
         'Sec-Fetch-Dest'
-      ] =
-        'video';
+      ] = 'video';
 
       extraHeaders[
         'Sec-Fetch-Mode'
-      ] =
-        'cors';
+      ] = 'cors';
 
       extraHeaders[
         'Sec-Fetch-Site'
-      ] =
-        'same-site';
+      ] = 'same-site';
     }
 
-
-    // --------------------------------------
-    // YOUTUBE
-    // --------------------------------------
-
     else if (
-      parsedHost.includes(
-        'ytimg.com'
-      ) ||
-      parsedHost.includes(
-        'youtube.com'
-      ) ||
-      parsedHost.includes(
-        'googlevideo.com'
-      )
+      hostname.includes('ytimg.com') ||
+      hostname.includes('youtube.com') ||
+      hostname.includes('googlevideo.com')
     ) {
       referer =
         'https://www.youtube.com/';
@@ -1944,18 +1635,9 @@ async function fetchFromCDN(
         'https://www.youtube.com';
     }
 
-
-    // --------------------------------------
-    // INSTAGRAM
-    // --------------------------------------
-
     else if (
-      parsedHost.includes(
-        'cdninstagram.com'
-      ) ||
-      parsedHost.includes(
-        'instagram.com'
-      )
+      hostname.includes('cdninstagram.com') ||
+      hostname.includes('instagram.com')
     ) {
       referer =
         'https://www.instagram.com/';
@@ -1964,18 +1646,9 @@ async function fetchFromCDN(
         'https://www.instagram.com';
     }
 
-
-    // --------------------------------------
-    // FACEBOOK
-    // --------------------------------------
-
     else if (
-      parsedHost.includes(
-        'fbcdn.net'
-      ) ||
-      parsedHost.includes(
-        'facebook.com'
-      )
+      hostname.includes('fbcdn.net') ||
+      hostname.includes('facebook.com')
     ) {
       referer =
         'https://www.facebook.com/';
@@ -1983,21 +1656,15 @@ async function fetchFromCDN(
       origin =
         'https://www.facebook.com';
     }
-
-  } catch (e) {
-    // Không làm gì nếu URL không parse được
-  }
-
+  } catch { }
 
   const reqHeaders = {
     'User-Agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
 
-    Referer:
-      referer,
+    Referer: referer,
 
-    Accept:
-      '*/*',
+    Accept: '*/*',
 
     'Accept-Language':
       'en-US,en;q=0.9',
@@ -2005,46 +1672,37 @@ async function fetchFromCDN(
     ...extraHeaders
   };
 
-
   if (origin) {
     reqHeaders.Origin =
       origin;
   }
-
 
   if (rangeHeader) {
     reqHeaders.Range =
       rangeHeader;
   }
 
-
   return axios({
-    method:
-      'get',
+    method: 'get',
 
-    url:
-      mediaUrl,
+    url: mediaUrl,
 
-    responseType:
-      'stream',
+    responseType: 'stream',
 
-    headers:
-      reqHeaders,
+    headers: reqHeaders,
 
-    maxRedirects:
-      5,
+    maxRedirects: 5,
 
-    validateStatus:
-      (s) =>
-        s >= 200 &&
-        s < 400
+    timeout: 60000,
+
+    validateStatus: (s) =>
+      s >= 200 && s < 400
   });
 }
 
-
-// ==========================================
+// ======================================================
 // IMAGE PROXY
-// ==========================================
+// ======================================================
 
 app.get(
   '/api/proxy-img',
@@ -2053,9 +1711,7 @@ app.get(
       req.query.url;
 
     if (!imgUrl) {
-      return res
-        .status(400)
-        .end();
+      return res.status(400).end();
     }
 
     try {
@@ -2067,9 +1723,6 @@ app.get(
       const ct =
         upstream.headers?.[
         'content-type'
-        ] ||
-        upstream.headers?.[
-        'Content-Type'
         ] ||
         'image/jpeg';
 
@@ -2088,7 +1741,6 @@ app.get(
         '*'
       );
 
-
       if (
         upstream.headers?.[
         'content-length'
@@ -2102,13 +1754,10 @@ app.get(
         );
       }
 
-
-      upstream.data.pipe(
-        res
-      );
+      upstream.data.pipe(res);
 
     } catch (e) {
-      const transparent1x1 =
+      const transparent =
         Buffer.from(
           'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
           'base64'
@@ -2119,19 +1768,16 @@ app.get(
         'image/png'
       );
 
-      res
-        .status(200)
-        .send(
-          transparent1x1
-        );
+      res.status(200).send(
+        transparent
+      );
     }
   }
 );
 
-
-// ==========================================
+// ======================================================
 // VIDEO STREAM
-// ==========================================
+// ======================================================
 
 app.get(
   '/api/stream',
@@ -2140,68 +1786,37 @@ app.get(
       req.query.url;
 
     if (!mediaUrl) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Missing url parameter.'
-        });
+      return res.status(400).json({
+        error:
+          'Missing url parameter.'
+      });
     }
 
-
     try {
-      const rangeHeader =
-        req.headers.range;
-
       const upstream =
         await fetchFromCDN(
           mediaUrl,
-          rangeHeader
+          req.headers.range
         );
 
-
       const headers =
-        upstream.headers ||
-        {};
-
+        upstream.headers || {};
 
       const contentType =
         headers[
         'content-type'
         ] ||
-        headers[
-        'Content-Type'
-        ] ||
         'video/mp4';
-
 
       const contentLength =
         headers[
         'content-length'
-        ] ||
-        headers[
-        'Content-Length'
         ];
-
 
       const contentRange =
         headers[
         'content-range'
-        ] ||
-        headers[
-        'Content-Range'
         ];
-
-
-      const acceptRanges =
-        headers[
-        'accept-ranges'
-        ] ||
-        headers[
-        'Accept-Ranges'
-        ] ||
-        'bytes';
-
 
       res.setHeader(
         'Access-Control-Allow-Origin',
@@ -2210,14 +1825,15 @@ app.get(
 
       res.setHeader(
         'Accept-Ranges',
-        acceptRanges
+        headers[
+        'accept-ranges'
+        ] || 'bytes'
       );
 
       res.setHeader(
         'Content-Type',
         contentType
       );
-
 
       if (contentLength) {
         res.setHeader(
@@ -2226,7 +1842,6 @@ app.get(
         );
       }
 
-
       if (contentRange) {
         res.setHeader(
           'Content-Range',
@@ -2234,12 +1849,9 @@ app.get(
         );
       }
 
-
       res.status(
-        upstream.status ||
-        200
+        upstream.status || 200
       );
-
 
       upstream.data.on(
         'error',
@@ -2249,27 +1861,18 @@ app.get(
             err.message
           );
 
-          if (
-            !res.headersSent
-          ) {
-            res
-              .status(500)
-              .json({
-                error:
-                  'Lỗi đọc video.'
-              });
+          if (!res.headersSent) {
+            res.status(500).json({
+              error:
+                'Lỗi đọc video.'
+            });
           } else {
-            res.destroy(
-              err
-            );
+            res.destroy(err);
           }
         }
       );
 
-
-      upstream.data.pipe(
-        res
-      );
+      upstream.data.pipe(res);
 
     } catch (error) {
       console.error(
@@ -2277,14 +1880,10 @@ app.get(
         error.message
       );
 
-
       if (
-        error.status ===
-        416
+        error.status === 416
       ) {
-        if (
-          error.headers
-        ) {
+        if (error.headers) {
           Object.entries(
             error.headers
           ).forEach(
@@ -2302,24 +1901,20 @@ app.get(
           .end();
       }
 
+      return res.status(500).json({
+        error:
+          'Không thể stream video.',
 
-      return res
-        .status(500)
-        .json({
-          error:
-            'Không thể stream video.',
-
-          detail:
-            error.message
-        });
+        detail:
+          error.message
+      });
     }
   }
 );
 
-
-// ==========================================
+// ======================================================
 // FORCE DOWNLOAD
-// ==========================================
+// ======================================================
 
 app.get(
   '/api/download',
@@ -2335,53 +1930,38 @@ app.get(
       req.query.type ||
       'video';
 
-
     if (!mediaUrl) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Vui lòng cung cấp link media.'
-        });
+      return res.status(400).json({
+        error:
+          'Vui lòng cung cấp link media.'
+      });
     }
 
-
     try {
-      console.log(
-        `[DOWNLOAD] Proxying download for: ${mediaUrl.substring(0, 60)}...`
-      );
-
-
       const mimeType =
         type === 'audio'
           ? 'audio/mpeg'
-          : (
-            type === 'image'
-              ? 'image/jpeg'
-              : 'video/mp4'
-          );
-
+          : type === 'image'
+            ? 'image/jpeg'
+            : 'video/mp4';
 
       const upstream =
         await fetchFromCDN(
           mediaUrl
         );
 
-
       res.setHeader(
         'Content-Disposition',
         `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
       );
-
 
       res.setHeader(
         'Content-Type',
         mimeType
       );
 
-
       if (
-        upstream.headers[
+        upstream.headers?.[
         'content-length'
         ]
       ) {
@@ -2393,10 +1973,7 @@ app.get(
         );
       }
 
-
-      upstream.data.pipe(
-        res
-      );
+      upstream.data.pipe(res);
 
     } catch (error) {
       console.error(
@@ -2404,20 +1981,17 @@ app.get(
         error.message
       );
 
-      return res
-        .status(500)
-        .json({
-          error:
-            'Tải file thất bại. Có thể link tải đã hết hạn, vui lòng thử lấy lại link.'
-        });
+      return res.status(500).json({
+        error:
+          'Tải file thất bại. Có thể link tải đã hết hạn, vui lòng thử lấy lại link.'
+      });
     }
   }
 );
 
-
-// ==========================================
+// ======================================================
 // AUDIO
-// ==========================================
+// ======================================================
 
 app.get(
   '/api/audio',
@@ -2426,14 +2000,11 @@ app.get(
       req.query.url;
 
     if (!mediaUrl) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Missing url parameter.'
-        });
+      return res.status(400).json({
+        error:
+          'Missing url parameter.'
+      });
     }
-
 
     try {
       const upstream =
@@ -2441,10 +2012,9 @@ app.get(
           mediaUrl
         );
 
-
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename*=UTF-8''audio.mp3`
+        'attachment; filename*=UTF-8\'\'audio.mp3'
       );
 
       res.setHeader(
@@ -2452,10 +2022,7 @@ app.get(
         'audio/mpeg'
       );
 
-
-      upstream.data.pipe(
-        res
-      );
+      upstream.data.pipe(res);
 
     } catch (error) {
       console.error(
@@ -2463,20 +2030,17 @@ app.get(
         error.message
       );
 
-      res
-        .status(500)
-        .json({
-          error:
-            'Không thể tải audio.'
-        });
+      res.status(500).json({
+        error:
+          'Không thể tải audio.'
+      });
     }
   }
 );
 
-
-// ==========================================
+// ======================================================
 // YOUTUBE AUDIO
-// ==========================================
+// ======================================================
 
 app.get(
   '/api/youtube-audio',
@@ -2488,36 +2052,28 @@ app.get(
       req.query.title ||
       'youtube_audio';
 
-
     if (!videoUrl) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Missing url parameter.'
-        });
+      return res.status(400).json({
+        error:
+          'Missing url parameter.'
+      });
     }
-
 
     try {
       console.log(
         `[YOUTUBE AUDIO] Extracting MP3 from: ${videoUrl}`
       );
 
-
       const {
         handleYouTubeAudio
-      } =
-        require(
-          './api/youtube'
-        );
-
+      } = require(
+        './api/youtube'
+      );
 
       const result =
         await handleYouTubeAudio(
           videoUrl
         );
-
 
       const filePath =
         path.join(
@@ -2525,23 +2081,19 @@ app.get(
           result.fileName
         );
 
-
       if (
         !fs.existsSync(
           filePath
         )
       ) {
-        return res
-          .status(404)
-          .json({
-            error:
-              'File audio không tìm thấy.'
-          });
+        return res.status(404).json({
+          error:
+            'File audio không tìm thấy.'
+        });
       }
 
-
       const safeTitle =
-        title
+        String(title)
           .replace(
             /[^a-zA-Z0-9\u00C0-\u024F\s\-_]/g,
             ''
@@ -2553,50 +2105,66 @@ app.get(
           ) ||
         'youtube_audio';
 
-
       const filename =
         `${safeTitle}.mp3`;
-
 
       res.setHeader(
         'Content-Disposition',
         `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
       );
 
-
       res.setHeader(
         'Content-Type',
         'audio/mpeg'
       );
-
 
       res.setHeader(
         'Content-Length',
         result.size
       );
 
-
       const stream =
         fs.createReadStream(
           filePath
         );
 
+      stream.on(
+        'error',
+        (err) => {
+          console.error(
+            '[YOUTUBE AUDIO STREAM ERROR]',
+            err.message
+          );
 
-      stream.pipe(
-        res
+          if (!res.headersSent) {
+            res.status(500).json({
+              error:
+                'Lỗi đọc file audio.'
+            });
+          } else {
+            res.destroy(err);
+          }
+        }
       );
 
+      stream.pipe(res);
 
       stream.on(
-        'end',
+        'close',
         () => {
           setTimeout(
             () => {
               try {
-                fs.unlinkSync(
-                  filePath
-                );
-              } catch (e) { }
+                if (
+                  fs.existsSync(
+                    filePath
+                  )
+                ) {
+                  fs.unlinkSync(
+                    filePath
+                  );
+                }
+              } catch { }
             },
             5000
           );
@@ -2609,20 +2177,19 @@ app.get(
         error.message
       );
 
-      res
-        .status(500)
-        .json({
+      if (!res.headersSent) {
+        return res.status(500).json({
           error:
             `Không thể trích xuất audio: ${error.message.substring(0, 200)}`
         });
+      }
     }
   }
 );
 
-
-// ==========================================
+// ======================================================
 // DOWNLOAD IMAGE ZIP
-// ==========================================
+// ======================================================
 
 app.get(
   '/api/download-zip',
@@ -2631,59 +2198,37 @@ app.get(
       req.query.url;
 
     if (!videoUrl) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Missing url parameter.'
-        });
+      return res.status(400).json({
+        error:
+          'Missing url parameter.'
+      });
     }
 
-
     try {
-      let images = [];
-
-
-      const {
-        data
-      } =
+      const result =
         await apiEngine.extractMedia(
           videoUrl
         );
 
+      const images =
+        result?.data?.images || [];
 
       if (
-        data?.images
-      ) {
-        images =
-          data.images;
-      }
-
-
-      if (
-        !images ||
         images.length === 0
       ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              'Không tìm thấy hình ảnh nào để tải.'
-          });
+        return res.status(400).json({
+          error:
+            'Không tìm thấy hình ảnh nào để tải.'
+        });
       }
 
-
       const JSZip =
-        require(
-          'jszip'
-        );
-
+        require('jszip');
 
       const zip =
         new JSZip();
 
-
-      const promises =
+      await Promise.all(
         images.map(
           async (
             imgUrl,
@@ -2695,29 +2240,18 @@ app.get(
                   imgUrl
                 );
 
-
               const chunks = [];
-
 
               for await (
                 const chunk of
                 response.data
               ) {
-                chunks.push(
-                  chunk
-                );
+                chunks.push(chunk);
               }
-
-
-              const buffer =
-                Buffer.concat(
-                  chunks
-                );
-
 
               zip.file(
                 `image_${index + 1}.jpg`,
-                buffer
+                Buffer.concat(chunks)
               );
 
             } catch (err) {
@@ -2727,38 +2261,28 @@ app.get(
               );
             }
           }
-        );
-
-
-      await Promise.all(
-        promises
+        )
       );
-
 
       const zipBuffer =
         await zip.generateAsync({
-          type:
-            'nodebuffer'
+          type: 'nodebuffer'
         });
-
 
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename*=UTF-8''images.zip`
+        'attachment; filename*=UTF-8\'\'images.zip'
       );
-
 
       res.setHeader(
         'Content-Type',
         'application/zip'
       );
 
-
       res.setHeader(
         'Content-Length',
         zipBuffer.length
       );
-
 
       res.send(
         zipBuffer
@@ -2770,20 +2294,17 @@ app.get(
         error
       );
 
-      res
-        .status(500)
-        .json({
-          error:
-            'Lỗi nén file hình ảnh.'
-        });
+      res.status(500).json({
+        error:
+          'Lỗi nén file hình ảnh.'
+      });
     }
   }
 );
 
-
-// ==========================================
+// ======================================================
 // EXTRACT FRAMES
-// ==========================================
+// ======================================================
 
 app.get(
   '/api/frames',
@@ -2797,51 +2318,40 @@ app.get(
         10
       ) || 1;
 
-
     if (!mediaUrl) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Missing url parameter.'
-        });
+      return res.status(400).json({
+        error:
+          'Missing url parameter.'
+      });
     }
-
 
     const uid =
       uuidv4();
 
-
     const outDir =
       path.join(
-        __dirname,
-        'public',
-        'temp',
+        FRAMES_DIR,
         uid
       );
 
-
-    fs.mkdirSync(
-      outDir,
-      {
-        recursive: true
-      }
-    );
-
-
-    const tempVideoPath =
-      path.join(
+    try {
+      fs.mkdirSync(
         outDir,
-        'input.mp4'
+        {
+          recursive: true
+        }
       );
 
+      const tempVideoPath =
+        path.join(
+          outDir,
+          'input.mp4'
+        );
 
-    try {
       const videoStream =
         await fetchFromCDN(
           mediaUrl
         );
-
 
       await new Promise(
         (
@@ -2853,17 +2363,19 @@ app.get(
               tempVideoPath
             );
 
-
           videoStream.data.pipe(
             writeStream
           );
 
+          videoStream.data.on(
+            'error',
+            reject
+          );
 
           writeStream.on(
             'finish',
             resolve
           );
-
 
           writeStream.on(
             'error',
@@ -2872,201 +2384,246 @@ app.get(
         }
       );
 
-    } catch (err) {
-      console.error(
-        '[FRAMES ERROR] Failed to download video:',
-        err.message
-      );
+      const outputPattern =
+        path.join(
+          outDir,
+          'frame-%03d.jpg'
+        );
 
-
-      return res
-        .status(500)
-        .json({
-          error:
-            'Không thể tải video để trích xuất khung hình.'
-        });
-    }
-
-
-    const outputPattern =
-      path.join(
-        outDir,
-        'frame-%03d.jpg'
-      );
-
-
-    ffmpeg(
-      tempVideoPath
-    )
-      .outputOptions([
-        `-vf fps=${fps}`,
-        '-t 15',
-        '-q:v 2'
-      ])
-
-      .output(
-        outputPattern
-      )
-
-      .on(
-        'end',
-        () => {
-          try {
-            fs.unlinkSync(
-              tempVideoPath
-            );
-          } catch (e) { }
-
-
-          const files =
-            fs.readdirSync(
-              outDir
+      await new Promise(
+        (
+          resolve,
+          reject
+        ) => {
+          ffmpeg(
+            tempVideoPath
+          )
+            .outputOptions([
+              `-vf fps=${fps}`,
+              '-t 15',
+              '-q:v 2'
+            ])
+            .output(
+              outputPattern
             )
-              .filter(
-                (f) =>
-                  f.endsWith(
-                    '.jpg'
-                  )
-              )
-              .sort()
-              .map(
-                (f) =>
-                  `/temp/${uid}/${f}`
-              );
-
-
-          res.json({
-            frames:
-              files
-          });
+            .on(
+              'end',
+              resolve
+            )
+            .on(
+              'error',
+              reject
+            )
+            .run();
         }
-      )
+      );
 
-      .on(
-        'error',
-        (err) => {
-          console.error(
-            '[FRAMES ERROR]',
-            err.message
-          );
+      try {
+        fs.unlinkSync(
+          tempVideoPath
+        );
+      } catch { }
 
+      const files =
+        fs.readdirSync(
+          outDir
+        )
+          .filter(
+            (f) =>
+              f.endsWith('.jpg')
+          )
+          .sort();
 
-          if (
-            !res.headersSent
-          ) {
-            res
-              .status(500)
-              .json({
-                error:
-                  'Failed to extract frames.'
-              });
+      const frameUrls =
+        files.map(
+          (file) =>
+            `/temp/${uid}/${encodeURIComponent(file)}`
+        );
+
+      return res.json({
+        frames:
+          frameUrls
+      });
+
+    } catch (error) {
+      console.error(
+        '[FRAMES ERROR]',
+        error.message
+      );
+
+      try {
+        fs.rmSync(
+          outDir,
+          {
+            recursive: true,
+            force: true
           }
-        }
-      )
+        );
+      } catch { }
 
-      .run();
+      return res.status(500).json({
+        error:
+          'Không thể trích xuất khung hình.',
+        detail:
+          error.message
+      });
+    }
   }
 );
 
+// ======================================================
+// CLEANUP /tmp
+// ======================================================
 
-// ==========================================
-// CLEANUP TEMP
-// ==========================================
+function cleanupOldFiles(
+  rootDir,
+  maxAgeMs
+) {
+  if (
+    !fs.existsSync(rootDir)
+  ) {
+    return;
+  }
+
+  const now =
+    Date.now();
+
+  let entries = [];
+
+  try {
+    entries =
+      fs.readdirSync(
+        rootDir
+      );
+  } catch {
+    return;
+  }
+
+  for (
+    const entry of entries
+  ) {
+    const entryPath =
+      path.join(
+        rootDir,
+        entry
+      );
+
+    try {
+      const stat =
+        fs.statSync(
+          entryPath
+        );
+
+      if (
+        now - stat.mtimeMs >
+        maxAgeMs
+      ) {
+        fs.rmSync(
+          entryPath,
+          {
+            recursive: true,
+            force: true
+          }
+        );
+
+        console.log(
+          `[CLEANUP] Removed ${entryPath}`
+        );
+      }
+    } catch (err) {
+      console.error(
+        '[CLEANUP ERROR]',
+        err.message
+      );
+    }
+  }
+}
 
 setInterval(
   () => {
-    const tempRoot =
-      path.join(
-        __dirname,
-        'public',
-        'temp'
-      );
+    cleanupOldFiles(
+      DOWNLOAD_DIR,
+      30 * 60 * 1000
+    );
 
+    cleanupOldFiles(
+      FACEBOOK_DOWNLOAD_DIR,
+      30 * 60 * 1000
+    );
 
-    if (
-      !fs.existsSync(
-        tempRoot
-      )
-    ) {
-      return;
-    }
-
-
-    const now =
-      Date.now();
-
-
-    fs.readdirSync(
-      tempRoot
-    ).forEach(
-      (folder) => {
-        const folderPath =
-          path.join(
-            tempRoot,
-            folder
-          );
-
-
-        try {
-          const stats =
-            fs.statSync(
-              folderPath
-            );
-
-
-          if (
-            now -
-            stats.mtimeMs >
-            10 * 60 * 1000
-          ) {
-            fs.rmSync(
-              folderPath,
-              {
-                recursive: true,
-                force: true
-              }
-            );
-
-
-            console.log(
-              `[CLEANUP] Removed temp folder ${folder}`
-            );
-          }
-
-        } catch (error) {
-          console.log(
-            `[CLEANUP] Could not remove ${folder}: ${error.message}`
-          );
-        }
-      }
+    cleanupOldFiles(
+      FRAMES_DIR,
+      10 * 60 * 1000
     );
   },
   5 * 60 * 1000
 );
 
+// ======================================================
+// ERROR HANDLER
+// ======================================================
 
-// ==========================================
+app.use(
+  (err, req, res, next) => {
+    console.error(
+      '[GLOBAL ERROR]',
+      err
+    );
+
+    if (
+      res.headersSent
+    ) {
+      return next(err);
+    }
+
+    res.status(500).json({
+      error:
+        'Lỗi máy chủ.',
+      detail:
+        err.message
+    });
+  }
+);
+
+// ======================================================
 // START SERVER
-// ==========================================
+// ======================================================
 
 const HOST =
   '0.0.0.0';
 
+if (
+  process.env.VERCEL !== '1'
+) {
+  app.listen(
+    PORT,
+    HOST,
+    () => {
+      console.log(
+        'Server is running'
+      );
 
-app.listen(
-  PORT,
-  HOST,
-  () => {
-    console.log(
-      'Server is running'
-    );
+      console.log(
+        `Local: http://localhost:${PORT}`
+      );
 
-    console.log(
-      `Local: http://localhost:${PORT}`
-    );
+      console.log(
+        `LAN: http://192.168.100.103:${PORT}`
+      );
 
-    console.log(
-      `LAN:   http://192.168.100.103:${PORT}`
-    );
-  }
-);
+      console.log(
+        `[STORAGE] ${DOWNLOAD_DIR}`
+      );
+
+      console.log(
+        `[FACEBOOK] ${FACEBOOK_DOWNLOAD_DIR}`
+      );
+    }
+  );
+}
+
+// ======================================================
+// VERCEL / COMMONJS EXPORT
+// ======================================================
+
+module.exports = app;
